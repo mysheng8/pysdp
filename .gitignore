@@ -1,0 +1,13 @@
+.env
+*.db
+.venv/
+__pycache__/
+*.egg-info/
+dist/
+build/
+logs/
+llm_cache.json
+decompile_cache.json
+.thumbnails/
+*.pyc
+_debug_prompt.txt

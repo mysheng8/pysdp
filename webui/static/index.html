@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pySdp</title>
+  <link rel="stylesheet" href="/static/style.css?v=20260523v">
+  <!-- marked.js for markdown rendering — falls back gracefully if offline -->
+  <script defer src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+  <!-- mermaid.js for diagram rendering -->
+  <script defer src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <!-- Three.js for OBJ mesh preview -->
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────── -->
+<header>
+  <span class="logo">pySdp</span>
+  <div class="badges">
+    <span class="badge badge-gray" id="server-badge">● SDPCLI: —</span>
+    <span class="badge badge-gray" id="device-badge">Disconnected</span>
+    <span class="badge badge-gray header-btn" onclick="switchTab('logs')" title="Logs">&#128221; Logs <span class="log-header-badge hidden" id="log-header-badge">0</span></span>
+    <span class="badge badge-gray header-btn" onclick="openModal('settings-modal')" title="Settings">&#9881; Settings</span>
+    <span class="badge badge-gray header-btn" onclick="switchTab('apidocs')" title="API Docs">&#128196; API Docs</span>
+    <span class="badge badge-blue header-btn" id="chat-toggle-btn" onclick="toggleChatPanel()" title="AI Chat">&#128172; Chat</span>
+  </div>
+</header>
+
+<!-- ── Tabs ───────────────────────────────────────────────────── -->
+<nav class="tabs" id="tab-bar">
+  <!-- Dynamically populated by renderTabBar() -->
+</nav>
+
+<!-- ── Main ───────────────────────────────────────────────────── -->
+<main>
+
+  <!-- ══ Home Tab ════════════════════════════════════════════════ -->
+  <section id="tab-home" class="tab-content active">
+
+    <!-- Filter bar (no background) -->
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <select id="home-filter-project" onchange="onHomeFilterProjectChange()" style="font-size:14px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);min-width:160px">
+        <option value="">All Projects</option>
+      </select>
+      <select id="home-filter-version" onchange="onHomeFilterVersionChange()" disabled style="font-size:14px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);min-width:160px">
+        <option value="">All Versions</option>
+      </select>
+      <button class="btn-secondary btn-sm" onclick="rescanSdpFiles()" style="margin-left:auto">Refresh</button>
+    </div>
+
+    <!-- SDP file grid -->
+    <div id="sdp-file-grid" class="sdp-grid" style="margin-top:12px"></div>
+    <div id="sdp-scan-msg" class="status-msg" style="min-height:0"></div>
+
+    <!-- Detail bar (fixed bottom, floating above grid) -->
+    <div id="home-selected-detail" class="home-detail-bar" style="display:none">
+      <div id="home-detail-info" style="font-size:13px;color:var(--text-muted);margin-bottom:8px"></div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button id="home-btn-analyze" class="btn-secondary btn-sm" onclick="doAnalyzeSelected()">Analyze</button>
+        <button id="home-btn-explore" class="btn-secondary btn-sm" onclick="doExploreSelected()" disabled>Explore</button>
+        <div style="position:relative;display:inline-block">
+          <button id="home-btn-set" class="btn-secondary btn-sm" onclick="toggleSetPopover()">Set ▾</button>
+          <div id="home-set-popover" style="display:none;position:absolute;bottom:100%;right:0;margin-bottom:6px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:100">
+            <div style="margin-bottom:10px">
+              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Project</label>
+              <div id="set-popover-project-list" class="popover-list"></div>
+            </div>
+            <div style="margin-bottom:10px">
+              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Version</label>
+              <div id="set-popover-version-list" class="popover-list"></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+              <label style="font-size:12px;color:var(--text-muted)">Orientation</label>
+              <select id="set-popover-orientation" style="font-size:12px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text)">
+                <option value="landscape">Landscape</option>
+                <option value="portrait">Portrait</option>
+              </select>
+              <button class="btn-secondary btn-sm" onclick="doGenThumbnail()" style="margin-left:auto">Gen Thumbnail</button>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
+              <button class="btn-secondary btn-sm" style="color:#dc2626" onclick="doRemoveSelected()">Remove</button>
+              <button class="btn-primary btn-sm" onclick="doApplySet()">Apply</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+  </section>
+
+  <!-- ══ Logs Tab ════════════════════════════════════════════════ -->
+  <section id="tab-logs" class="tab-content">
+
+    <div class="card">
+      <div class="card-title">Logs</div>
+
+      <!-- Toolbar -->
+      <div class="log-toolbar">
+        <div class="log-filters">
+          <button class="log-filter-btn active" data-filter="all"     onclick="setLogFilter('all')">All</button>
+          <button class="log-filter-btn"         data-filter="error"   onclick="setLogFilter('error')">Error</button>
+          <button class="log-filter-btn"         data-filter="warning" onclick="setLogFilter('warning')">Warning</button>
+          <button class="log-filter-btn"         data-filter="info"    onclick="setLogFilter('info')">Info</button>
+          <button class="log-filter-btn"         data-filter="debug"   onclick="setLogFilter('debug')">Debug</button>
+        </div>
+        <div class="log-actions">
+          <button class="btn-secondary btn-sm" onclick="fetchLogs()">Refresh</button>
+          <button class="btn-secondary btn-sm" onclick="clearLogs()">Clear</button>
+        </div>
+      </div>
+
+      <!-- Log list -->
+      <div id="log-list"><span class="muted log-empty">No log entries.</span></div>
+    </div>
+
+  </section>
+
+  <!-- ══ API Docs Tab ════════════════════════════════════════════ -->
+  <section id="tab-apidocs" class="tab-content">
+    <iframe id="apidocs-iframe" style="width:100%;height:calc(100vh - 110px);border:none"></iframe>
+  </section>
+
+</main>
+
+<!-- ══ Snapshot Modal ══════════════════════════════════════════ -->
+<div class="modal-overlay" id="snapshot-modal" style="display:none">
+  <div class="modal-backdrop" onclick="closeModal('snapshot-modal')"></div>
+  <div class="modal-panel modal-sm">
+    <div class="modal-header">
+      <span class="modal-title">New Capture</span>
+      <button class="modal-close" onclick="closeModal('snapshot-modal')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Step 0: Project & Version -->
+      <div class="card" id="card-project">
+        <div class="card-title">0 — Project &amp; Version</div>
+        <div class="form-row">
+          <label>Project</label>
+          <select id="capture-project" style="flex:1;min-width:0;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text)" onchange="onCaptureProjectChange()">
+            <option value="">— select project —</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>Version</label>
+          <select id="capture-version" style="flex:1;min-width:0;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text)" disabled>
+            <option value="">— select version —</option>
+          </select>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:4px">
+          <a href="#" onclick="event.preventDefault();openProjectManager()">Manage projects</a>
+        </div>
+      </div>
+
+      <!-- Step 1: Connect -->
+      <div class="card" id="card-connect">
+        <div class="card-title">1 — Connect Device</div>
+        <div class="form-row">
+          <label>Device</label>
+          <div style="display:flex;gap:6px;flex:1;min-width:0">
+            <select id="device-id" style="flex:1;min-width:0;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text)">
+              <option value="">— auto-select —</option>
+            </select>
+            <button class="btn-secondary btn-sm" onclick="refreshDeviceList()">&#8635;</button>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button id="btn-connect"    onclick="doConnect()">Connect</button>
+          <button id="btn-disconnect" class="btn-secondary" onclick="doDisconnect()" disabled>Disconnect</button>
+        </div>
+        <div id="connect-prog" class="progress-wrap hidden">
+          <div class="progress-track"><div class="progress-fill" id="connect-fill"></div></div>
+          <span class="progress-label" id="connect-plabel"></span>
+        </div>
+        <div class="status-msg" id="connect-msg"></div>
+      </div>
+
+      <!-- Step 2: Launch -->
+      <div class="card disabled" id="card-launch">
+        <div class="card-title">2 — Launch App</div>
+        <div class="form-row">
+          <label>Package</label>
+          <div style="display:flex;gap:6px;flex:1;min-width:0">
+            <select id="pkg" style="flex:1;min-width:0;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text)" onchange="onPkgChange()" onfocus="refreshPackageList()">
+              <option value="">— select package —</option>
+            </select>
+            <button class="btn-secondary btn-sm" onclick="refreshPackageList()">&#8635;</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Activity</label>
+          <select id="activity" style="flex:1;min-width:0;font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text)">
+            <option value="">— default launch —</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>API</label>
+          <div style="display:flex;gap:14px;align-items:center">
+            <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer">
+              <input type="radio" name="rendering-api" id="api-vulkan" value="16"> Vulkan
+            </label>
+            <label style="display:flex;align-items:center;gap:5px;font-weight:400;cursor:pointer">
+              <input type="radio" name="rendering-api" id="api-gles" value="8" checked> GLES
+            </label>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button id="btn-launch" onclick="doLaunch()" disabled>Launch</button>
+        </div>
+        <div id="launch-prog" class="progress-wrap hidden">
+          <div class="progress-track"><div class="progress-fill" id="launch-fill"></div></div>
+          <span class="progress-label" id="launch-plabel"></span>
+        </div>
+        <div class="status-msg" id="launch-msg"></div>
+      </div>
+
+      <!-- Step 3: Capture -->
+      <div class="card disabled" id="card-capture">
+        <div class="card-title">3 — Capture</div>
+        <div class="form-row">
+          <label>Label</label>
+          <input id="cap-label" type="text" placeholder="optional frame label">
+        </div>
+        <div class="btn-row">
+          <button id="btn-capture" onclick="doCapture()" disabled>Capture</button>
+        </div>
+        <div id="capture-prog" class="progress-wrap hidden">
+          <div class="progress-track"><div class="progress-fill" id="capture-fill"></div></div>
+          <span class="progress-label" id="capture-plabel"></span>
+        </div>
+        <div class="status-msg" id="capture-msg"></div>
+        <div class="captures-list" id="captures-list"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ Settings Modal ═════════════════════════════════════════ -->
+<div class="modal-overlay" id="settings-modal" style="display:none">
+  <div class="modal-backdrop" onclick="closeModal('settings-modal')"></div>
+  <div class="modal-panel modal-sm">
+    <div class="modal-header">
+      <span class="modal-title">Analysis Settings</span>
+      <button class="modal-close" onclick="closeModal('settings-modal')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row" style="margin-top:10px">
+        <label>SDP Directory</label>
+        <input id="sdp-dir" type="text" placeholder="D:/snapdragon/project/sdp" style="flex:1;min-width:0">
+      </div>
+      <div class="form-row">
+        <label>Analysis Directory</label>
+        <input id="shared-snap-dir" type="text" placeholder="D:/snapdragon/project/analysis" style="flex:1;min-width:0">
+      </div>
+      <div class="form-row">
+        <label>Report Directory</label>
+        <input id="report-dir" type="text" placeholder="D:/snapdragon/project/reports" style="flex:1;min-width:0">
+      </div>
+      <div class="form-row">
+        <label>Snapshot ID</label>
+        <input id="snapshot-id" type="number" value="1" style="max-width:120px">
+        <span class="muted" style="font-size:11px;margin-left:6px">1 = all snapshots</span>
+      </div>
+      <div class="form-row" style="align-items:flex-start">
+        <label style="padding-top:6px">Targets</label>
+        <div class="targets-grid" id="targets-grid"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-secondary btn-sm" onclick="saveAnalysisSettings()">Save Settings</button>
+        <button class="btn-secondary btn-sm" onclick="doReingest()">Re-ingest DB</button>
+      </div>
+      <div class="status-msg" id="settings-save-msg"></div>
+      <hr style="margin:16px 0;border-color:var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:600;font-size:14px">Projects &amp; Versions</span>
+        <button class="btn-secondary btn-sm" onclick="openProjectManager()">Manage</button>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:6px">
+        Organize snapshots by project and version for comparison.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Explorer Tab Template ═══════════════════════════════════ -->
+<template id="explorer-tab-template">
+  <section class="tab-content explorer-tab">
+
+    <!-- Snapshot secondary tabs -->
+    <div class="explorer-snap-tabs"></div>
+
+    <!-- Session metadata bar + subnav -->
+    <div class="explorer-meta-row" style="display:none">
+      <div class="explorer-meta-bar"></div>
+      <div class="explorer-subnav">
+        <button class="subnav-btn active" data-sub="explorer">Data</button>
+        <button class="subnav-btn" data-sub="questions">Stats</button>
+      </div>
+    </div>
+
+    <!-- Panel: Explorer (default, shown) -->
+    <div class="explorer-panel panel-explorer">
+
+      <!-- Screenshot inside panel, scrolls together with content -->
+      <div class="explorer-snap-screenshot"></div>
+
+      <!-- Two-column layout: list left, detail right -->
+      <div class="explorer-columns" style="display:none">
+
+        <!-- LEFT: DC list -->
+        <div class="explorer-col-left">
+          <div class="card explorer-dc-card">
+            <div class="card-title-row">
+              <span class="card-title" style="margin-bottom:0">Draw Calls
+                <span class="muted explorer-dc-count" style="font-size:12px;margin-left:8px"></span>
+              </span>
+              <div class="dc-col-tabs">
+                <button class="dc-col-tab active" data-col-tab="params">Params</button>
+                <button class="dc-col-tab"        data-col-tab="metrics">Metrics</button>
+                <button class="dc-col-tab"        data-col-tab="label">Label</button>
+              </div>
+            </div>
+            <div class="form-row">
+              <label>Category</label>
+              <div class="cat-filter-wrap">
+                <button class="cat-filter-btn">All &#9662;</button>
+                <div class="cat-filter-dropdown" style="display:none"></div>
+              </div>
+            </div>
+            <!-- Clock bar chart -->
+            <div class="explorer-dc-clock-chart-wrap" style="display:none;position:relative;margin:8px 0 4px">
+              <canvas class="dc-clock-chart" style="width:100%;height:180px;display:block"></canvas>
+              <div class="dc-clock-tooltip dc-chart-tooltip" style="display:none"></div>
+            </div>
+            <div class="explorer-dc-table"></div>
+          </div>
+        </div>
+
+        <!-- RIGHT: DC detail -->
+        <div class="explorer-col-right">
+          <div class="explorer-detail-panel"></div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Panel: Questions (includes old Results) -->
+    <div class="explorer-panel panel-questions" style="display:none">
+
+      <div class="status-msg explorer-questions-msg"></div>
+
+      <!-- Chart card -->
+      <div class="card explorer-questions-result-card" style="display:none">
+
+        <!-- Top bar: type switch only -->
+        <div class="q-top-bar">
+          <div class="q-chart-type-switch">
+            <span class="q-switch-opt" data-chart="pie">Pie</span>
+            <span class="q-switch-opt active" data-chart="bar">Bar</span>
+          </div>
+        </div>
+
+        <!-- Charts: two side by side -->
+        <div class="q-charts-row" style="margin-top:8px">
+          <div style="position:relative;flex:1;min-width:0">
+            <div class="q-chart-label">clocks</div>
+            <canvas class="q-chart-clock" style="width:100%;height:320px;display:block"></canvas>
+            <div class="q-chart-clock-tip dc-chart-tooltip" style="display:none"></div>
+          </div>
+          <div style="position:relative;flex:1;min-width:0">
+            <div class="q-chart-label q-chart2-label">--</div>
+            <canvas class="q-chart-sel" style="width:100%;height:320px;display:block"></canvas>
+            <div class="q-chart-sel-tip dc-chart-tooltip" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- Metric buttons below charts -->
+        <div class="q-metric-btns-wrap" style="margin-top:10px"></div>
+
+        <!-- Table below metric buttons -->
+        <div class="explorer-questions-table-wrap" style="margin-top:10px"></div>
+      </div>
+
+      <!-- Clock correlation card -->
+      <div class="card explorer-q-corr-card" style="display:none">
+        <div class="card-title-row">
+          <div style="display:flex;align-items:center;gap:6px">
+            <select class="q-label-select" style="font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;min-width:120px;background:var(--card);color:var(--text)">
+              <option value="">All labels</option>
+            </select>
+            <button class="btn-secondary btn-sm explorer-detail-btn">Detail &#8594;</button>
+          </div>
+          <span class="card-title explorer-q-corr-title" style="margin-bottom:0">Clock Correlation (R&#178;) -- All DCs</span>
+          <button class="btn-secondary btn-sm explorer-q-corr-reset" style="display:none">Show All</button>
+        </div>
+        <div class="q-corr-hint" style="margin-top:6px">R&#178; &#8212; how much of clock variance each metric explains (0%=unrelated, 100%=fully determines). Click a bar to drill into one label.</div>
+        <div class="explorer-q-corr-body"></div>
+      </div>
+
+      <!-- Results section (merged into Questions) -->
+      <div class="card explorer-results-card" style="margin-top:16px">
+        <div class="card-title">Files</div>
+        <div class="explorer-snapshot-viewer" style="display:none">
+          <div class="explorer-snap-panels"></div>
+        </div>
+        <div class="explorer-file-viewer"></div>
+      </div>
+
+    </div>
+
+  </section>
+</template>
+
+<!-- ══ Analysis Progress Modal ════════════════════════════════ -->
+<div class="modal-overlay" id="analysis-modal" style="display:none">
+  <div class="modal-backdrop"></div>
+  <div class="modal-panel modal-sm">
+    <div class="modal-header">
+      <span class="modal-title">Analyzing: <span id="analysis-progress-name" style="font-weight:400;color:var(--text-muted)"></span></span>
+      <button class="modal-close" onclick="cancelAnalysis()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="progress-wrap" id="analysis-prog">
+        <div class="progress-track"><div class="progress-fill" id="analysis-fill"></div></div>
+        <span class="progress-label" id="analysis-plabel"></span>
+      </div>
+      <div class="status-msg" id="analysis-msg"></div>
+      <div class="btn-row" style="margin-top:10px">
+        <button id="btn-cancel-analysis" class="btn-secondary btn-sm" onclick="cancelAnalysis()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Chat Sidebar ═══════════════════════════════════════════ -->
+<aside id="chat-panel" class="chat-panel">
+  <div class="chat-header">
+    <span class="chat-title">AI Chat</span>
+    <div class="chat-context-bar" id="chat-context-chips"></div>
+    <button class="chat-pin-add-btn" onclick="toggleSnapshotPicker()" title="Pin snapshot">+</button>
+    <div class="chat-snapshot-picker" id="chat-snapshot-picker" style="display:none"></div>
+    <button class="chat-copy-btn" onclick="copyChatConversation()" title="Copy conversation">&#128203;</button>
+    <button class="chat-close-btn" onclick="toggleChatPanel()">&#10005;</button>
+  </div>
+  <div class="chat-messages" id="chat-messages"></div>
+  <div class="chat-status-line" id="chat-status-line" style="display:none"></div>
+  <div class="chat-input-area">
+    <div id="chat-slash-dropdown" class="slash-dropdown" style="display:none"></div>
+    <div class="chat-skills-dropdown" id="chat-skills-dropdown" style="display:none"></div>
+    <div class="chat-input-box">
+      <textarea id="chat-input" placeholder="Ask about GPU performance..." rows="2"></textarea>
+      <div class="chat-input-controls">
+        <div class="chat-controls-left">
+          <button class="chat-ctrl-btn" id="chat-skills-toggle" onclick="toggleSkillsDropdown()" title="Skills">&#9889; Skills</button>
+          <div class="chat-skill-badge" id="chat-skill-badge" style="display:none"></div>
+        </div>
+        <button id="chat-send-btn" onclick="sendChatMessage()" title="Send (Enter)">&#9654;</button>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<script src="/static/chat.js?v=20260523v"></script>
+<script src="/static/app.js?v=20260523v"></script>
+</body>
+</html>

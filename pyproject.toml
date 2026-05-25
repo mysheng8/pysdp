@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pysdp"
+version = "0.1.0"
+description = "Snapdragon Profiler data analysis and visualization platform"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "requests>=2.28",
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "aiofiles",
+    "duckdb>=0.9",
+    "pytz",
+    "litellm",
+    "Pillow",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx"]
+
+[project.scripts]
+pysdp = "webui.server:main"
+pysdp-fetch = "scripts.fetch_sdpcli:main"
+
+[tool.pysdp]
+sdpcli_version = "0.1.0"
+sdpcli_release_url = "https://github.com/mysheng8/sdpcli-releases/releases/download/v{version}/SDPCLI-v{version}-win64.zip"
+
+[tool.setuptools.packages.find]
+include = ["webui*", "analysis*", "chat*", "data*", "pysdp*", "config*", "scripts*"]
+
+[tool.setuptools.package-data]
+analysis = ["attribution_rules.json"]
+webui = ["static/**/*"]

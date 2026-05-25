@@ -1,0 +1,242 @@
+{
+  "schema_version": "2.0",
+  "description": "DrawCall attribution rule config — three-layer rule engine",
+
+  "layer1_metric_hints": [
+    {
+      "metric":          "tex_fetch_stall_pct",
+      "bottleneck_hint": "texture_bound",
+      "description":     "Texture fetch stall high → texture sampling bandwidth bottleneck"
+    },
+    {
+      "metric":          "tex_l1_miss_pct",
+      "bottleneck_hint": "texture_bound",
+      "description":     "L1 cache miss high → texture cache miss"
+    },
+    {
+      "metric":          "tex_l2_miss_pct",
+      "bottleneck_hint": "texture_bound",
+      "description":     "L2 cache miss high → texture memory bandwidth pressure"
+    },
+    {
+      "metric":          "tex_mem_read_bytes",
+      "bottleneck_hint": "bandwidth",
+      "description":     "Texture read bytes high → memory bandwidth"
+    },
+    {
+      "metric":          "shaders_busy_pct",
+      "bottleneck_hint": "shader_alu",
+      "description":     "Shader unit busy high → ALU-bound"
+    },
+    {
+      "metric":          "fragment_instructions",
+      "bottleneck_hint": "fragment_bound",
+      "description":     "Fragment instruction count high → fragment shader complexity"
+    },
+    {
+      "metric":          "fragments_shaded",
+      "bottleneck_hint": "overdraw",
+      "description":     "Fragments shaded high → overdraw / large coverage"
+    },
+    {
+      "metric":          "vertices_shaded",
+      "bottleneck_hint": "model_cost",
+      "description":     "Vertex count high → model complexity / geometry cost"
+    },
+    {
+      "metric":          "vertex_instructions",
+      "bottleneck_hint": "model_cost",
+      "description":     "Vertex instruction count high → vertex shader complexity (skinning/morphing)"
+    },
+    {
+      "metric":          "vertex_mem_read_bytes",
+      "bottleneck_hint": "model_cost",
+      "description":     "Vertex memory read high → vertex data bandwidth"
+    },
+    {
+      "metric":          "read_total_bytes",
+      "bottleneck_hint": "bandwidth",
+      "description":     "Total read bytes high → memory bandwidth"
+    },
+    {
+      "metric":          "write_total_bytes",
+      "bottleneck_hint": "bandwidth",
+      "description":     "Total write bytes high → write bandwidth (MRT/resolve)"
+    },
+    { "metric": "shaders_stalled_pct",       "bottleneck_hint": "shader_alu",    "description": "Shader stall high → latency/dependency stall" },
+    { "metric": "time_alus_working_pct",     "bottleneck_hint": "shader_alu",    "description": "ALU time high → computation bound" },
+    { "metric": "wave_context_occupancy_pct","bottleneck_hint": "shader_alu",    "description": "Low wave occupancy → memory latency not hidden" },
+    { "metric": "instruction_cache_miss_pct","bottleneck_hint": "shader_alu",    "description": "Instruction cache miss → complex branching shader" },
+    { "metric": "tex_pipes_busy_pct",        "bottleneck_hint": "texture_bound", "description": "Texture pipe busy rate high" },
+    { "metric": "textures_per_fragment",     "bottleneck_hint": "texture_bound", "description": "High texture fetches per fragment" },
+    { "metric": "lrz_pixels_killed",         "bottleneck_hint": "overdraw",      "description": "LRZ kill count → early-Z efficiency indicator" },
+    { "metric": "vertex_fetch_stall_pct",    "bottleneck_hint": "model_cost",    "description": "Vertex fetch stall → vertex buffer bandwidth" },
+    { "metric": "preemptions",               "bottleneck_hint": "preemption",    "description": "GPU preemptions → scheduling overhead" },
+    { "metric": "avg_preemption_delay",      "bottleneck_hint": "preemption",    "description": "Preemption delay high → long GPU work chunks" },
+    { "metric": "fragment_alu_instr_full",   "bottleneck_hint": "fragment_bound","description": "Full-precision ALU instructions high" },
+    { "metric": "fragment_efu_instructions", "bottleneck_hint": "fragment_bound","description": "EFU instruction count high → trig/special math" }
+  ],
+
+  "layer2_percentile_tiers": {
+    "min_sample_size_for_category": 5,
+    "tiers": [
+      { "name": "p99", "threshold": 0.99, "weight": 1.00 },
+      { "name": "p95", "threshold": 0.95, "weight": 0.80 },
+      { "name": "p90", "threshold": 0.90, "weight": 0.60 },
+      { "name": "p80", "threshold": 0.80, "weight": 0.40 },
+      { "name": "p70", "threshold": 0.70, "weight": 0.15 },
+      { "name": "p60", "threshold": 0.60, "weight": 0.10 },
+      { "name": "p50", "threshold": 0.50, "weight": 0.05 }
+    ]
+  },
+
+  "layer3_bottleneck_weights": [
+    {
+      "bottleneck":   "texture_bound",
+      "display_name": "Texture Sampling Bottleneck",
+      "contributing_metrics": [
+        { "metric": "tex_fetch_stall_pct",   "contribution_weight": 0.34 },
+        { "metric": "tex_pipes_busy_pct",    "contribution_weight": 0.23 },
+        { "metric": "tex_l1_miss_pct",       "contribution_weight": 0.20 },
+        { "metric": "tex_l2_miss_pct",       "contribution_weight": 0.13 },
+        { "metric": "textures_per_fragment", "contribution_weight": 0.10 }
+      ],
+      "description": "Primary cost is texture fetch wait — excessive sampling, large mip misses, or bandwidth saturation"
+    },
+    {
+      "bottleneck":   "shader_alu",
+      "display_name": "Shader ALU Bottleneck",
+      "contributing_metrics": [
+        { "metric": "shaders_busy_pct",           "contribution_weight": 0.28 },
+        { "metric": "time_alus_working_pct",       "contribution_weight": 0.22 },
+        { "metric": "shaders_stalled_pct",         "contribution_weight": 0.19 },
+        { "metric": "fragment_instructions",       "contribution_weight": 0.14 },
+        { "metric": "wave_context_occupancy_pct",  "contribution_weight": 0.11 },
+        { "metric": "instruction_cache_miss_pct",  "contribution_weight": 0.06 }
+      ],
+      "description": "Shader ALU saturated — fragment/vertex complexity too high"
+    },
+    {
+      "bottleneck":   "fragment_bound",
+      "display_name": "Fragment Shading Bottleneck",
+      "contributing_metrics": [
+        { "metric": "fragment_instructions",      "contribution_weight": 0.43 },
+        { "metric": "fragment_alu_instr_full",    "contribution_weight": 0.35 },
+        { "metric": "fragments_shaded",           "contribution_weight": 0.13 },
+        { "metric": "fragment_efu_instructions",  "contribution_weight": 0.09 }
+      ],
+      "description": "Fragment shader instruction count high (complex lighting/material)"
+    },
+    {
+      "bottleneck":   "overdraw",
+      "display_name": "Overdraw",
+      "contributing_metrics": [
+        { "metric": "fragments_shaded",   "contribution_weight": 0.59 },
+        { "metric": "write_total_bytes",  "contribution_weight": 0.23 },
+        { "metric": "lrz_pixels_killed",  "contribution_weight": 0.18 }
+      ],
+      "description": "Fragment count far exceeds pixel count — significant overdraw"
+    },
+    {
+      "bottleneck":   "bandwidth",
+      "display_name": "Memory Bandwidth Bottleneck",
+      "contributing_metrics": [
+        { "metric": "read_total_bytes",   "contribution_weight": 0.34 },
+        { "metric": "write_total_bytes",  "contribution_weight": 0.28 },
+        { "metric": "tex_mem_read_bytes", "contribution_weight": 0.21 },
+        { "metric": "tex_l2_miss_pct",   "contribution_weight": 0.17 }
+      ],
+      "description": "DC constrained by memory read/write bandwidth"
+    },
+    {
+      "bottleneck":   "model_cost",
+      "display_name": "Geometry / Model Cost",
+      "contributing_metrics": [
+        { "metric": "vertices_shaded",        "contribution_weight": 0.40 },
+        { "metric": "vertex_instructions",    "contribution_weight": 0.28 },
+        { "metric": "vertex_mem_read_bytes",  "contribution_weight": 0.20 },
+        { "metric": "vertex_fetch_stall_pct", "contribution_weight": 0.12 }
+      ],
+      "description": "High vertex count or complex vertex shader (skinning/morphing)"
+    },
+    {
+      "bottleneck":   "preemption",
+      "display_name": "GPU Preemption Overhead",
+      "contributing_metrics": [
+        { "metric": "preemptions",          "contribution_weight": 0.60 },
+        { "metric": "avg_preemption_delay", "contribution_weight": 0.40 }
+      ],
+      "description": "GPU preempted repeatedly — scheduling overhead or overly long work chunks"
+    }
+  ],
+
+  "top_n_per_category":           5,
+  "low_confidence_threshold":     0.60,
+  "primary_bottleneck_min_score": 0.25,
+
+  "outlier_signal_thresholds": [
+    {
+      "metric":  "fragments_shaded",
+      "mode":    "ratio",
+      "ratio":   1.5,
+      "label":   "Fragments Shaded",
+      "message": "{ratio:.1f}×: 片元数量大 → overdraw高或绘制面积大"
+    },
+    {
+      "metric":  "shaders_busy_pct",
+      "mode":    "additive",
+      "addend":  10.0,
+      "floor":   70.0,
+      "label":   "% Shaders Busy",
+      "message": "{value:.1f}%: Shader占用率高 → ALU计算密集"
+    },
+    {
+      "metric":  "fragment_instructions",
+      "mode":    "ratio",
+      "ratio":   1.5,
+      "label":   "Fragment Instructions",
+      "message": "{ratio:.1f}×: 指令数高 → 复杂像素着色"
+    },
+    {
+      "metric":  "tex_fetch_stall_pct",
+      "mode":    "additive",
+      "addend":  5.0,
+      "floor":   5.0,
+      "label":   "% Texture Fetch Stall",
+      "message": "{value:.1f}%: 纹理采样等待多 → 纹理数量多/大"
+    },
+    {
+      "metric":  "tex_l1_miss_pct",
+      "mode":    "additive",
+      "addend":  10.0,
+      "floor":   30.0,
+      "label":   "% Texture L1 Miss",
+      "message": "{value:.1f}%: L1缓存命中率低 → 纹理访问随机"
+    },
+    {
+      "metric":  "read_total_bytes",
+      "mode":    "ratio",
+      "ratio":   2.0,
+      "label":   "Read Total",
+      "message": "{mb:.2f}MB ({ratio:.1f}×): 内存读带宽高 → 大纹理/buffer读取"
+    },
+    {
+      "metric":  "write_total_bytes",
+      "mode":    "ratio",
+      "ratio":   2.0,
+      "label":   "Write Total",
+      "message": "{mb:.2f}MB: 内存写带宽高 → 大分辨率RT写入"
+    }
+  ],
+
+  "label_reason_tags": [
+    "pbr_material", "multi_texture_blend", "high_uv_sampling",
+    "skinned_mesh", "morphing", "instanced_draw", "compute_dispatch",
+    "gaussian_blur", "tone_mapping", "ssao", "bloom", "taa",
+    "shadow_depth_write", "shadow_pcf_sample",
+    "particle_billboard", "trail_ribbon",
+    "ui_canvas", "font_glyph",
+    "depth_only", "opaque_geometry", "transparent_geometry",
+    "large_render_target", "mrt_output"
+  ]
+}
