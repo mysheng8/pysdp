@@ -302,3 +302,33 @@ Set `PyLogLevel=debug|info|warning|error` in `config.ini` or `PYSDP_LOG_LEVEL` e
 - **Screenshot**: Prefers analysis directory cache, falls back to extracting from `.sdp` ZIP at `snapshot_N/*.bmp`
 - **GLES Shader format**: Vulkan outputs HLSL ([spirv-cross](https://vulkan.lunarg.com/sdk/home)), GLES outputs GLSL (IR3→LLM decompile) or raw IR3 disasm ([Mesa freedreno ir3-disasm](https://gitlab.freedesktop.org/mesa/mesa)); `label_service` handles both transparently
 - **MCP**: Exposes 19 read-only query endpoints via `fastapi-mcp`; mount point `/mcp`
+
+---
+
+## GLES Shader Decompile (ir3-disasm)
+
+GLES captures use Adreno IR3 disassembly. `ir3-disasm` is built from [Mesa freedreno](https://gitlab.freedesktop.org/mesa/mesa) and must be configured via `PYSDP_IR3_DISASM_PATH`. The chip ID is auto-detected at runtime from `dc.json`; override with `PYSDP_IR3_CHIP_ID` if needed.
+
+Supported Adreno GPUs:
+
+| Chip ID | GPU | Device examples |
+|---|---|---|
+| 0x06030001 | Adreno 660 | Snapdragon 888 |
+| 0x06030500 | Adreno 7c+ Gen 3 / 8c Gen 3 | Snapdragon 7c+ Gen 3, QCM6490 |
+| 0x06060201 | Adreno 662 (FD644) | — |
+| 0x06060300 | FD663 | — |
+| 0x07002000 | FD702 | QRB2210 |
+| 0x07030001 | Adreno 730 | Snapdragon 8 Gen 1 |
+| 0x07030002 | Adreno 725 | Snapdragon 7s Gen 2 |
+| 0x43030B00 | FD735 | — |
+| 0x43030c00 | Adreno X1-45 | Snapdragon X Plus |
+| 0x43050a00 | Adreno A32 | G3x Gen 2 |
+| 0x43050a01 | Adreno 740 | Snapdragon 8 Gen 2 |
+| 0x43050b00 | Adreno 740 v3 | Meta Quest 3 |
+| 0x43050c01 | Adreno X1-85 | Snapdragon X Elite |
+| 0x43051401 | Adreno 750 | Snapdragon 8 Gen 3 |
+| 0x44010000 | Adreno 810 | Snapdragon 8 Elite |
+| 0x44030a20 | Adreno 829 | — |
+| 0x44050001 | Adreno 830 | Snapdragon 8 Elite (variant) |
+| 0x44050A31 | Adreno 840 | — |
+| 0x44070041 | Adreno X2-85 | Snapdragon X2 Elite |
