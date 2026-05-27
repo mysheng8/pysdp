@@ -22,6 +22,7 @@ dependencies = [
     "numpy",
     "pandas",
     "python-dotenv>=1.0",
+    "fastapi-mcp",
 ]
 
 [project.optional-dependencies]
@@ -32,7 +33,7 @@ pysdp = "webui.server:main"
 pysdp-fetch = "scripts.fetch_sdpcli:main"
 
 [tool.pysdp]
-sdpcli_version = "0.1.0"
+sdpcli_version = "0.1.1"
 sdpcli_release_url = "https://github.com/mysheng8/sdpcli-releases/releases/download/v{version}/SDPCLI-v{version}-win64.zip"
 
 [tool.setuptools.packages.find]

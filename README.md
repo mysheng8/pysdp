@@ -27,39 +27,66 @@ pySdp/
 
 ---
 
-## Quick Start (Standalone)
+## Installation & Quick Start
 
-```bash
-# Install
-pip install -e .
-
-# Configure (fill in API keys for LLM features)
-cp .env.example .env
-
-# Run
-pysdp --port 8000
-```
-
-Open http://localhost:8000 in your browser.
-
-### With SDPCLI (for live device capture)
-
-Download the SDPCLI binary release and run:
-```bash
-SDPCLI.exe server --port 5000
-pysdp --port 8000 --sdpcli http://localhost:5000
-```
-
-### Monorepo (development)
+### Windows
 
 ```powershell
-# From the snapdragon root directory
+# 1. Clone
+git clone https://github.com/mysheng8/pysdp && cd pysdp
+
+# 2. Configure — create a .env file in the repo root before installing:
+#
+#    # --- Paths ---
+#    PYSDP_PROJECT_DIR=D:/your/project           # SDP files and analysis output
+#    PYSDP_VULKAN_SDK_PATH=C:/VulkanSDK/1.x.x    # for Vulkan SPIR-V → HLSL (spirv-cross)
+#    PYSDP_IR3_DISASM_PATH=C:/path/to/ir3-disasm.exe  # for GLES IR3 disassembly (optional)
+#
+#    # --- LLM (DrawCall labeling / report generation) ---
+#    PYSDP_LLM_API_ENDPOINT=https://...
+#    PYSDP_LLM_API_KEY=sk-...
+#    PYSDP_LLM_MODEL=vertex_ai/gemini-2.5-flash-lite
+#
+#    # --- VLM (screenshot description) ---
+#    PYSDP_VLM_API_ENDPOINT=https://...
+#    PYSDP_VLM_API_KEY=sk-...
+#    PYSDP_VLM_MODEL=...
+#
+#    # --- Chat AI (WebUI sidebar) ---
+#    PYSDP_CHAT_API_ENDPOINT=https://...
+#    PYSDP_CHAT_API_KEY=sk-...
+#    PYSDP_CHAT_MODEL=vertex_ai/gemini-2.5-flash
+#
+#    See config.ini for all available keys and their defaults.
+
+# 3. Install: creates .venv, installs Python deps, downloads SDPCLI binary,
+#             seeds SDPCLI config.ini with paths from .env
+.\install.ps1
+
+# 4. Start
 .\webui.ps1
 ```
 
-`webui.ps1` automatically: kills stale port processes → creates `.venv` → installs dependencies → starts SDPCLI Server → starts WebUI → opens browser. Press ESC to stop both processes.
+`webui.ps1` automatically: kills stale port processes → syncs `.env` paths into SDPCLI config → starts SDPCLI Server (if available) → starts WebUI → opens browser. Press **ESC** to stop all processes.
+
+Open **http://localhost:8000** in your browser.
 
 > API docs (Swagger): **http://localhost:8000/api/docs**
+
+### Without SDPCLI (offline / analysis-only)
+
+If SDPCLI binary is not found, `webui.ps1` starts in offline mode — all analysis features work, only live device capture is unavailable.
+
+### Custom ports
+
+```powershell
+.\webui.ps1 -Port 8080 -SdpcliPort 5001
+```
+
+### SDPCLI binary location
+
+`install.ps1` downloads SDPCLI to `%USERPROFILE%\.pysdp\sdpcli\SDPCLI.exe`.  
+To use a custom binary, set `PYSDP_SDPCLI_PATH=C:\path\to\SDPCLI.exe` in `.env` before running `webui.ps1`.
 
 ---
 
@@ -88,7 +115,7 @@ pySdp/
 │   ├── status_service.py      # Percentile statistics → status.json + DB
 │   ├── topdc_service.py       # Top-DC bottleneck attribution → topdc.json
 │   ├── dashboard_service.py   # Mermaid charts → dashboard.md
-│   ├── analysis_md_service.py # LLM analysis report → analysis.md
+│   ├── report_service.py      # LLM analysis report → snapshot_N_report.md
 │   ├── mesh_stats_service.py  # OBJ parsing → meshes.json
 │   ├── texture_stats_service.py # Texture dimensions → textures.json
 │   ├── gles_decompile_service.py # IR3 disasm → GLSL via LLM (batch + single-file recompile)
@@ -114,7 +141,7 @@ pySdp/
 ├── examples/
 │   ├── snapshot.py
 │   └── batch_analysis.py
-└── requirements.txt
+└── pyproject.toml
 ```
 
 ---
@@ -195,7 +222,7 @@ Singleton DuckDB connection with the following schema:
 Python pipeline execution order (runs after C# writes JSON outputs):
 
 ```
-screenshot → mesh_stats → texture_stats → ingest → label → status → topdc → analysis_md → scene_describe
+screenshot → mesh_stats → texture_stats → gles_decompile → ingest → label → status → topdc → describe → report
 ```
 
 Each step is non-fatal: a single step failure does not affect already-completed steps.
@@ -204,11 +231,12 @@ Each step is non-fatal: a single step failure does not affect already-completed 
 |---|---|---|---|
 | `mesh_stats_service` | `meshes/*.obj` | `meshes/meshes.json` | ✓ (re-ingest) |
 | `texture_stats_service` | `textures/` | `textures/textures.json` | ✓ (re-ingest) |
+| `gles_decompile_service` | `shaders.json` (IR3 disasm) | per-shader `.glsl` files | — |
 | `label_service` | `dc.json` + `shaders.json` | `label.json` | ✓ |
 | `status_service` | `dc.json` + `label.json` + `metrics.json` | `status.json` | ✓ |
 | `topdc_service` | `status.json` + `attribution_rules.json` | `topdc.json` | — |
-| `analysis_md_service` | `topdc.json` | `analysis.md` | — |
 | `vlm_screenshot_service` | screenshot + label/metrics | `scene_description.md` | ✓ |
+| `report_service` | screenshot + `status.json` + `topdc.json` | `snapshot_N_report.md` | — |
 
 **GLES-specific**: Shaders in `shaders.json` come from IR3 disassembly or LLM-reconstructed GLSL (not Vulkan's SPIR-V→HLSL). `label_service` handles both formats transparently without needing to distinguish API type.
 

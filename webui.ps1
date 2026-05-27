@@ -30,41 +30,49 @@ if ($env:PYSDP_SDPCLI_PATH -and (Test-Path $env:PYSDP_SDPCLI_PATH)) {
     $sdpcliExe = "$env:USERPROFILE\.pysdp\sdpcli\SDPCLI.exe"
 }
 
+# ── Sync paths from .env / config into SDPCLI config.ini ─────────────────────
+if ($sdpcliExe) {
+    Write-Host " Syncing paths to SDPCLI config..."
+    & $python -m scripts.fetch_sdpcli --sync-config
+}
+
+# ── Start SDPCLI Server (optional — skipped if binary not found) ──────────────
+$sdpcliProc = $null
 if (-not $sdpcliExe) {
-    Write-Error "SDPCLI not found. Run .\install.ps1 first."; exit 1
+    Write-Host " [INFO] SDPCLI not found — starting WebUI in offline mode (device capture unavailable)."
+    Write-Host "        Run .\install.ps1 to download SDPCLI, or set PYSDP_SDPCLI_PATH."
+} else {
+    $sdpcliDir = Split-Path $sdpcliExe
+    Write-Host "`n Starting SDPCLI Server on port $SdpcliPort..."
+    $sdpcliProc = Start-Process "cmd" `
+        -ArgumentList "/k cd /d `"$sdpcliDir`" && `"$sdpcliExe`" server --port $SdpcliPort" `
+        -WindowStyle Normal -PassThru
+
+    # Wait for SDPCLI to be ready
+    Write-Host " Waiting for SDPCLI Server..."
+    $ready = $false
+    for ($i = 0; $i -lt 30; $i++) {
+        try {
+            Invoke-WebRequest "http://localhost:$SdpcliPort/api/device" -UseBasicParsing -TimeoutSec 1 | Out-Null
+            $ready = $true; break
+        } catch { Start-Sleep -Seconds 1 }
+    }
+    if ($ready) { Write-Host " SDPCLI Server is up." }
+    else         { Write-Host " [WARN] SDPCLI did not respond after 30s - starting WebUI anyway." }
 }
-
-$sdpcliDir = Split-Path $sdpcliExe
-
-# ── Start SDPCLI Server ───────────────────────────────────────────────────────
-Write-Host "`n Starting SDPCLI Server on port $SdpcliPort..."
-$sdpcliProc = Start-Process "cmd" `
-    -ArgumentList "/k cd /d `"$sdpcliDir`" && `"$sdpcliExe`" server --port $SdpcliPort" `
-    -WindowStyle Normal -PassThru
-
-# ── Wait for SDPCLI to be ready ───────────────────────────────────────────────
-Write-Host " Waiting for SDPCLI Server..."
-$ready = $false
-for ($i = 0; $i -lt 30; $i++) {
-    try {
-        Invoke-WebRequest "http://localhost:$SdpcliPort/api/device" -UseBasicParsing -TimeoutSec 1 | Out-Null
-        $ready = $true; break
-    } catch { Start-Sleep -Seconds 1 }
-}
-if ($ready) { Write-Host " SDPCLI Server is up." }
-else         { Write-Host " [WARN] SDPCLI did not respond after 30s - starting WebUI anyway." }
 
 # ── Start WebUI ───────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "  pySdp WebUI   >  http://${BindHost}:$Port"
-Write-Host "  SDPCLI Server >  http://localhost:$SdpcliPort"
+if ($sdpcliExe) { Write-Host "  SDPCLI Server >  http://localhost:$SdpcliPort" }
 Write-Host "  Press ESC to stop."
 Write-Host ""
 
 Start-Sleep -Seconds 1
 Start-Process "http://${BindHost}:$Port"
 
-$pyArgs = "webui\server.py --host $BindHost --port $Port --sdpcli http://localhost:$SdpcliPort"
+$sdpcliArg = if ($sdpcliExe) { " --sdpcli http://localhost:$SdpcliPort" } else { "" }
+$pyArgs = "webui\server.py --host $BindHost --port $Port$sdpcliArg"
 $proc = Start-Process "cmd" `
     -ArgumentList "/k cd /d `"$root`" && `"$python`" $pyArgs" `
     -WindowStyle Normal -PassThru

@@ -213,6 +213,9 @@ def check_sdpcli_version(auto_download: bool = True) -> bool:
 
 def main():
     """CLI entry point."""
+    if "--sync-config" in sys.argv:
+        sync_sdpcli_config()
+        return
     force = "--force" in sys.argv
     version = get_required_version()
     download(version, force=force)
