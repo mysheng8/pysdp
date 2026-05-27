@@ -41,8 +41,8 @@ git clone https://github.com/mysheng8/pysdp && cd pysdp
 #    PYSDP_PROJECT_DIR=D:/your/project           # SDP files and analysis output
 #    PYSDP_VULKAN_SDK_PATH=C:/VulkanSDK/1.x.x    # Vulkan SPIR-V → HLSL via spirv-cross
 #                                                 # Download: https://vulkan.lunarg.com/sdk/home
-#    PYSDP_IR3_DISASM_PATH=C:/path/to/ir3-disasm.exe  # GLES IR3 disassembly (optional)
-#                                                 # Build from Mesa freedreno:
+#    PYSDP_IR3_DISASM_PATH=tools/ir3-disasm.exe   # GLES IR3 disassembly (included in repo)
+#                                                 # Source: Mesa freedreno
 #                                                 # https://gitlab.freedesktop.org/mesa/mesa
 #
 #    # --- LLM (DrawCall labeling / report generation) ---
