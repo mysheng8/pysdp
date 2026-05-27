@@ -111,9 +111,9 @@ def generate_buffers_json(snapshot_dir: str | Path) -> Path:
     from logger import get_logger
     _log = get_logger()
 
+    from analysis.snapshot_layout import resolve_asset_dir
     snap = Path(snapshot_dir)
-    run_dir = snap.parent
-    meshes_dir = run_dir / "meshes"
+    meshes_dir = resolve_asset_dir(snap, "meshes")
 
     if not meshes_dir.exists():
         raise FileNotFoundError(f"Meshes directory not found: {meshes_dir}")

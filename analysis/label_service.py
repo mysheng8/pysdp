@@ -256,9 +256,10 @@ def _extract_shader_sections(src: str, resource_limit: int = 2500) -> str:
     )
 
 
-def _load_shader_code(run_dir: Path, pipeline_id: int) -> str:
+def _load_shader_code(snap: Path, pipeline_id: int) -> str:
     """Load pipeline shader files and extract relevant sections."""
-    shader_dir = run_dir / "shaders"
+    from analysis.snapshot_layout import resolve_asset_dir
+    shader_dir = resolve_asset_dir(snap, "shaders")
     if not shader_dir.is_dir():
         return "(shader directory not found — shaders may not have been extracted yet)"
 
@@ -459,7 +460,7 @@ def _parse_llm_response(text: str) -> dict | None:
     )
 
 
-def _label_dc_with_llm(dc: dict, run_dir: Path,
+def _label_dc_with_llm(dc: dict, snap: Path,
                         mesh_stats: dict | None = None,
                         tex_descs: list | None = None) -> dict | None:
     """Try LLM labeling for a DC. Returns label dict or None if LLM unavailable/fails."""
@@ -484,7 +485,7 @@ def _label_dc_with_llm(dc: dict, run_dir: Path,
         _log.debug(f"[Label] dc={dc.get('api_id')} pipeline={pipeline_id} → pipeline_cache HIT: {cached.get('category')}")
         return cached
 
-    shader_code = _load_shader_code(run_dir, pipeline_id)
+    shader_code = _load_shader_code(snap, pipeline_id)
     if shader_code.startswith("("):
         _log.debug(f"[Label] dc={dc.get('api_id')} pipeline={pipeline_id} → no shader: {shader_code[:60]}")
         return None
@@ -533,14 +534,14 @@ def generate_label_json(snapshot_dir: str | Path, db=None) -> Path:
     _log.info(f"[Label] start: {len(draw_calls)} draw calls", context={"dir": str(snap.name)})
     _t0 = _time.time()
 
-    # run_dir is one level up from snapshot_N/ — shaders live at run_dir/shaders/
-    run_dir = snap.parent
     # Clear per-snapshot pipeline cache so different snapshots don't share entries
     _pipeline_llm_cache.clear()
 
+    from analysis.snapshot_layout import resolve_asset_dir
+
     # ── Load mesh stats index: api_id → stats dict ─────────────────────────────
     _mesh_index: dict[int, dict] = {}
-    meshes_json = run_dir / "meshes" / "meshes.json"
+    meshes_json = resolve_asset_dir(snap, "meshes") / "meshes.json"
     if meshes_json.exists():
         try:
             mdata = json.loads(meshes_json.read_text(encoding="utf-8-sig"))
@@ -553,7 +554,7 @@ def generate_label_json(snapshot_dir: str | Path, db=None) -> Path:
 
     # ── Load texture description index: texture_id → entry dict ───────────────
     _tex_index: dict[int, dict] = {}
-    tex_json = run_dir / "textures" / "textures.json"
+    tex_json = resolve_asset_dir(snap, "textures") / "textures.json"
     if tex_json.exists():
         try:
             tdata = json.loads(tex_json.read_text(encoding="utf-8-sig"))
@@ -575,7 +576,7 @@ def generate_label_json(snapshot_dir: str | Path, db=None) -> Path:
         mesh_stats = _mesh_index.get(api_id) if api_id else None
         tex_ids    = dc.get("texture_ids") or []
         tex_descs  = [_tex_index[tid] for tid in tex_ids if tid in _tex_index] or None
-        label = _label_dc_with_llm(dc, run_dir, mesh_stats, tex_descs) or _label_dc(dc)
+        label = _label_dc_with_llm(dc, snap, mesh_stats, tex_descs) or _label_dc(dc)
         labeled[idx] = {
             "dc_id":  dc.get("dc_id"),
             "api_id": api_id,
@@ -729,16 +730,16 @@ def relabel_single_dc(snapshot_dir: str | Path, api_id: int, db=None) -> dict:
     if target_dc is None:
         return {"ok": False, "error": f"api_id {api_id} not found in dc.json"}
 
-    run_dir = snap.parent
-
     # Clear pipeline cache for this pipeline so LLM is forced
     pipeline_id = target_dc.get("pipeline_id")
     if pipeline_id in _pipeline_llm_cache:
         del _pipeline_llm_cache[pipeline_id]
 
+    from analysis.snapshot_layout import resolve_asset_dir
+
     # Load mesh/texture context
     mesh_stats = None
-    meshes_json = run_dir / "meshes" / "meshes.json"
+    meshes_json = resolve_asset_dir(snap, "meshes") / "meshes.json"
     if meshes_json.exists():
         try:
             mdata = json.loads(meshes_json.read_text(encoding="utf-8-sig"))
@@ -750,7 +751,7 @@ def relabel_single_dc(snapshot_dir: str | Path, api_id: int, db=None) -> dict:
             pass
 
     tex_descs = None
-    tex_json = run_dir / "textures" / "textures.json"
+    tex_json = resolve_asset_dir(snap, "textures") / "textures.json"
     if tex_json.exists():
         try:
             tdata = json.loads(tex_json.read_text(encoding="utf-8-sig"))
@@ -761,7 +762,7 @@ def relabel_single_dc(snapshot_dir: str | Path, api_id: int, db=None) -> dict:
             pass
 
     _log.info(f"[Label] relabel single: api_id={api_id} pipeline={pipeline_id}")
-    label = _label_dc_with_llm(target_dc, run_dir, mesh_stats, tex_descs)
+    label = _label_dc_with_llm(target_dc, snap, mesh_stats, tex_descs)
     if label is None:
         label = _label_dc(target_dc)
 

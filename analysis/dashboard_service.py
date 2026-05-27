@@ -331,9 +331,8 @@ def generate_dashboard_md(snapshot_dir: str | Path) -> Path:
         lines.append("")
 
     # ── 3D Mesh Preview ───────────────────────────────────────────────────────
-    mesh_dir = snap.parent / "meshes"
-    if not mesh_dir.exists():
-        mesh_dir = snap / "meshes"
+    from analysis.snapshot_layout import resolve_asset_dir
+    mesh_dir = resolve_asset_dir(snap, "meshes")
     objs = sorted(mesh_dir.glob("*.obj")) if mesh_dir.exists() else []
     if objs:
         lines += ["---\n", "## 3D Mesh Preview\n",
