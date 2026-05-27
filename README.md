@@ -39,8 +39,11 @@ git clone https://github.com/mysheng8/pysdp && cd pysdp
 #
 #    # --- Paths ---
 #    PYSDP_PROJECT_DIR=D:/your/project           # SDP files and analysis output
-#    PYSDP_VULKAN_SDK_PATH=C:/VulkanSDK/1.x.x    # for Vulkan SPIR-V → HLSL (spirv-cross)
-#    PYSDP_IR3_DISASM_PATH=C:/path/to/ir3-disasm.exe  # for GLES IR3 disassembly (optional)
+#    PYSDP_VULKAN_SDK_PATH=C:/VulkanSDK/1.x.x    # Vulkan SPIR-V → HLSL via spirv-cross
+#                                                 # Download: https://vulkan.lunarg.com/sdk/home
+#    PYSDP_IR3_DISASM_PATH=C:/path/to/ir3-disasm.exe  # GLES IR3 disassembly (optional)
+#                                                 # Build from Mesa freedreno:
+#                                                 # https://gitlab.freedesktop.org/mesa/mesa
 #
 #    # --- LLM (DrawCall labeling / report generation) ---
 #    PYSDP_LLM_API_ENDPOINT=https://...
@@ -297,5 +300,5 @@ Set `PyLogLevel=debug|info|warning|error` in `config.ini` or `PYSDP_LOG_LEVEL` e
 - **snapshot_id conflicts**: `snapshot_dir` is the unique key; C# session-local numbering may overlap, ingest auto-assigns globally unique IDs while `snap_index` preserves original numbering
 - **Render Targets**: Not stored in DuckDB, read at runtime from `dc.json`; GLES captures correctly distinguish Color / Depth / Stencil attachment types
 - **Screenshot**: Prefers analysis directory cache, falls back to extracting from `.sdp` ZIP at `snapshot_N/*.bmp`
-- **GLES Shader format**: Vulkan outputs HLSL (spirv-cross), GLES outputs GLSL (IR3→LLM decompile) or raw IR3 disasm; `label_service` transparently handles both formats
+- **GLES Shader format**: Vulkan outputs HLSL ([spirv-cross](https://vulkan.lunarg.com/sdk/home)), GLES outputs GLSL (IR3→LLM decompile) or raw IR3 disasm ([Mesa freedreno ir3-disasm](https://gitlab.freedesktop.org/mesa/mesa)); `label_service` handles both transparently
 - **MCP**: Exposes 19 read-only query endpoints via `fastapi-mcp`; mount point `/mcp`
