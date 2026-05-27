@@ -1,5 +1,6 @@
 .env
 *.db
+*.db.wal
 .venv/
 __pycache__/
 *.egg-info/
