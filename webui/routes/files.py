@@ -315,7 +315,7 @@ def make_router(db=None) -> APIRouter:
         project_id = body.get("project_id")
         version_id = body.get("version_id")
         _ingest_one(p, db, project_id=project_id, version_id=version_id)
-        return {"ok": True}
+        return {"ok": True, "path": str(p).replace("\\", "/")}
 
     @router.post("/sdp/move")
     async def move_sdp(request: Request):
@@ -528,9 +528,9 @@ def make_router(db=None) -> APIRouter:
             ext = f.suffix.lstrip(".").lower()
             if "index" in stem:
                 return "skip"
-            if ext in ("md",) or any(k in stem for k in ("analysis", "dashboard")):
+            if ext in ("md",) or any(k in stem for k in ("analysis", "dashboard", "report")):
                 return "analysis"
-            if any(k in stem for k in ("label", "status")):
+            if any(k in stem for k in ("label", "status", "topdc")):
                 return "statistics"
             if any(k in stem for k in ("dc", "buffers", "shaders", "textures", "metrics")):
                 return "raw"
@@ -873,16 +873,10 @@ def make_router(db=None) -> APIRouter:
         project = cfg.get("ProjectDir", "")
         if not project and working:
             project = str(Path(working) / "project")
-        sdp_dir = cfg.get("SdpDir", "sdp")
-        analysis_dir = cfg.get("AnalysisDir", "analysis")
-        report_dir = cfg.get("ReportDir", "reports")
-        if project:
-            if not Path(sdp_dir).is_absolute():
-                sdp_dir = str(Path(project) / sdp_dir)
-            if not Path(analysis_dir).is_absolute():
-                analysis_dir = str(Path(project) / analysis_dir)
-            if not Path(report_dir).is_absolute():
-                report_dir = str(Path(project) / report_dir)
+        from config import resolve_project_subdir as _resolve
+        sdp_dir      = str(_resolve("SdpDir",     "sdp")     or cfg.get("SdpDir",     "sdp"))
+        analysis_dir = str(_resolve("AnalysisDir","analysis") or cfg.get("AnalysisDir","analysis"))
+        report_dir   = str(_resolve("ReportDir",  "reports")  or cfg.get("ReportDir",  "reports"))
         return {
             "ok": True,
             "data": {
@@ -942,6 +936,7 @@ def make_router(db=None) -> APIRouter:
 
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         _reload_cfg()
+
         return {"ok": True, "data": {"updated": list(updated_keys)}}
 
     return router

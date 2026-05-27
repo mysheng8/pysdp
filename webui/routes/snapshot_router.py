@@ -34,7 +34,6 @@ class LaunchRequest(BaseModel):
 
 
 class CaptureRequest(BaseModel):
-    outputDir: Optional[str] = None
     label: Optional[str] = None
 
 
@@ -93,7 +92,6 @@ def launch(body: LaunchRequest):
     summary="Trigger a GPU frame capture",
     description=(
         "Start an async GPU snapshot capture job. Device must be in SessionActive state. "
-        "outputDir: optional absolute path for capture output (defaults to config.ini OutputDir). "
         "label: optional frame label string. "
         "Returns jobId — poll via GET /api/snapshot/jobs/{job_id}. "
         "Returns 409 if not in SessionActive state."
@@ -101,8 +99,6 @@ def launch(body: LaunchRequest):
 )
 def capture(body: CaptureRequest):
     payload = {}
-    if body.outputDir:
-        payload["outputDir"] = body.outputDir
     if body.label:
         payload["label"] = body.label
     return _fwd("POST", "/api/capture", payload, timeout=300)

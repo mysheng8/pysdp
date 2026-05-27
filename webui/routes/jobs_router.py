@@ -37,7 +37,6 @@ from jobs import pipeline_manager, VALID_STEPS
 class CsExtractRequest(BaseModel):
     sdpPath: str
     snapshotId: int
-    outputDir: Optional[str] = None
     targets: str = "dc,shaders,textures,buffers,metrics"
 
 
@@ -64,8 +63,6 @@ def make_router(db=None) -> APIRouter:
             "snapshotId": body.snapshotId,
             "targets":    body.targets,
         }
-        if body.outputDir:
-            payload["outputDir"] = body.outputDir
         return _fwd("POST", "/api/analysis", payload, timeout=60)
 
     # ── Python single-step ─────────────────────────────────────────────────────
@@ -127,8 +124,7 @@ def make_router(db=None) -> APIRouter:
         from data.ingest import ingest_snapshot
         log = _logger_module.get_logger()
         try:
-            run_dir = str(Path(snapshot_dir).parent)
-            out = generate_texture_stats(run_dir)
+            out = generate_texture_stats(snapshot_dir)
         except FileNotFoundError as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
         except Exception as exc:
@@ -244,6 +240,23 @@ def make_router(db=None) -> APIRouter:
         if ok:
             _publish("report_done", {"snapshot_dir": snapshot_dir})
         return {"ok": ok, "data": results, **({"errors": errors} if errors else {})}
+
+    @router.post("/generate_report", summary="Generate LLM-powered GPU performance report (MD)")
+    def run_generate_report(snapshot_dir: str = Query(..., description="Snapshot directory")):
+        """Generate snapshot_N_report.md using VLM screenshot description + LLM analysis."""
+        from analysis.report_service import generate_report
+        log = _logger_module.get_logger()
+        try:
+            out = generate_report(snapshot_dir)
+            _publish("report_done", {"snapshot_dir": snapshot_dir, "report": str(out)})
+            return {"ok": True, "data": {"path": str(out)}}
+        except FileNotFoundError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+        except RuntimeError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
+        except Exception as exc:
+            log.error("generate_report failed", exc=exc, context={"dir": snapshot_dir})
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
     # ── Python pipeline (async) ────────────────────────────────────────────────
 

@@ -19,7 +19,7 @@ from events import publish as _publish
 
 # ── Job model ─────────────────────────────────────────────────────────────────
 
-VALID_STEPS = ["screenshot", "mesh_stats", "texture_stats", "gles_decompile", "ingest", "label", "status", "topdc", "analysis", "describe"]
+VALID_STEPS = ["screenshot", "mesh_stats", "texture_stats", "gles_decompile", "ingest", "label", "status", "topdc", "describe", "report"]
 
 # Maps step key → (weight in overall progress, display phase name)
 _STEP_META: dict[str, tuple[int, str]] = {
@@ -31,8 +31,8 @@ _STEP_META: dict[str, tuple[int, str]] = {
     "label":           (20, "label_drawcalls"),
     "status":          (15, "generate_stats"),
     "topdc":           (15, "generate_topdc"),
-    "analysis":        (25, "report_analysis"),
     "describe":        (10, "vlm_describe"),
+    "report":          (20, "llm_report"),
 }
 
 
@@ -262,8 +262,7 @@ def _run_step(step: str, snapshot_dir: str, db) -> Any:
 
     if step == "texture_stats":
         from analysis.texture_stats_service import generate_texture_stats
-        run_dir = str(Path(snapshot_dir).parent)
-        out = generate_texture_stats(run_dir)
+        out = generate_texture_stats(snapshot_dir)
         return {"path": str(out)}
 
     if step == "gles_decompile":
@@ -289,14 +288,14 @@ def _run_step(step: str, snapshot_dir: str, db) -> Any:
         out = generate_topdc_json(snapshot_dir)
         return {"path": str(out)}
 
-    if step == "analysis":
-        from analysis.analysis_md_service import generate_analysis_md
-        out = generate_analysis_md(snapshot_dir)
-        return {"path": str(out)}
-
     if step == "describe":
         from analysis.vlm_screenshot_service import generate_scene_description
         out = generate_scene_description(snapshot_dir, db=db)
+        return {"path": str(out)}
+
+    if step == "report":
+        from analysis.report_service import generate_report
+        out = generate_report(snapshot_dir)
         return {"path": str(out)}
 
     raise ValueError(f"Unknown step: {step}")

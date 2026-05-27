@@ -81,30 +81,25 @@ class SdpClient:
 
     def capture(
         self,
-        output_dir: Optional[str] = None,
         label: Optional[str] = None,
     ) -> dict:
         """Trigger a GPU frame snapshot and block until complete (~3-5 min).
 
         Args:
-            output_dir: Override output directory for the capture.
             label: Optional label for the capture.
 
         Returns:
             ``{"sdpPath": ..., "captureId": ..., "sessionId": ...}``
         """
-        job_id = self.submit_capture(output_dir=output_dir, label=label)
+        job_id = self.submit_capture(label=label)
         return self._wait_result(job_id)
 
     def submit_capture(
         self,
-        output_dir: Optional[str] = None,
         label: Optional[str] = None,
     ) -> str:
         """Submit a capture job without waiting. Returns the job ID."""
         body: dict = {}
-        if output_dir:
-            body["outputDir"] = output_dir
         if label:
             body["label"] = label
         return self._submit_job("/api/capture", body)
@@ -115,7 +110,6 @@ class SdpClient:
         self,
         sdp_path: str,
         snapshot_id: int,
-        output_dir: Optional[str] = None,
         targets: Optional[str] = None,
     ) -> dict:
         """Run offline analysis on an .sdp file and block until complete (~2-10 min).
@@ -123,7 +117,6 @@ class SdpClient:
         Args:
             sdp_path: Absolute path to the ``.sdp`` archive.
             snapshot_id: Capture ID to analyse (>= 2).
-            output_dir: Override analysis output root directory.
             targets: Comma-separated target list, e.g. ``"label,metrics,status"``.
                      Defaults to all targets.
 
@@ -132,8 +125,6 @@ class SdpClient:
                "captureDir": ..., "targets": ...}``
         """
         body: dict = {"sdpPath": sdp_path, "snapshotId": snapshot_id}
-        if output_dir:
-            body["outputDir"] = output_dir
         if targets:
             body["targets"] = targets
         job_id = self._submit_job("/api/analysis", body)

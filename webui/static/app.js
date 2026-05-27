@@ -489,7 +489,7 @@ async function doCapture() {
   setBtn('btn-capture', false);
   setMsg('capture', 'info', 'Submitting…');
 
-  const body = label ? { label } : {};
+  const body = { ...(label && { label }) };
   let res;
   try {
     res = await apiPost(`${API}/capture`, body);
@@ -515,16 +515,23 @@ async function doCapture() {
       hideProg('capture');
       const r = job.result || {};
       setMsg('capture', 'success', `Done  captureId: ${r.captureId ?? '—'}`);
-      if (r.captureId != null) {
-        addCaptureRow(r);
-        state.captures.push(r);
-      }
+      if (r.captureId != null) state.captures.push(r);
       syncDevice();
-      // Ingest new SDP into DB, then refresh list
+      // Ingest new SDP into DB (may copy to project dir), then refresh list
       if (r.sdpPath) {
-        apiPost(`${FILES}/sdp/ingest`, { path: r.sdpPath, project_id: projectId || undefined, version_id: versionId || undefined }).catch(() => {});
+        apiPost(`${FILES}/sdp/ingest`, { path: r.sdpPath, project_id: projectId || undefined, version_id: versionId || undefined })
+          .then(res => {
+            if (res && res.path) r.sdpPath = res.path;
+            if (r.captureId != null) addCaptureRow(r);
+            if (document.getElementById('sdp-dir').value) scanSdpFiles();
+          })
+          .catch(() => {
+            if (r.captureId != null) addCaptureRow(r);
+            if (document.getElementById('sdp-dir').value) scanSdpFiles();
+          });
+      } else {
+        if (document.getElementById('sdp-dir').value) scanSdpFiles();
       }
-      if (document.getElementById('sdp-dir').value) scanSdpFiles();
     },
     err => {
       hideProg('capture');
@@ -573,7 +580,7 @@ const sdpApiCache = {};
 // sdpPath → full file info {app, api, project_id, version_id, ...}
 const sdpInfoCache = {};
 
-const ALL_TARGETS     = ['screenshot','ingest','dc','shaders','textures','buffers','label','metrics','status','topdc','analysis'];
+const ALL_TARGETS     = ['screenshot','ingest','dc','shaders','textures','buffers','label','metrics','status','topdc','report'];
 const DEFAULT_TARGETS = new Set(ALL_TARGETS);
 
 // Targets handled by C# (SDK P/Invoke — must run on SDPCLI server)
@@ -632,12 +639,17 @@ async function scanSdpFiles() {
     return;
   }
 
-  if (!res.data || res.data.length === 0) {
-    grid.innerHTML = '<span class="muted">No SDP files. Set directory in Settings and click Refresh.</span>';
+  _allSdpFiles = res.data || [];
+
+  if (_allSdpFiles.length === 0) {
+    grid.innerHTML = '';
+    _renderFlatSdpFiles(grid, []);
+    const warn = document.createElement('span');
+    warn.className = 'muted';
+    warn.textContent = 'No SDP files found. Set the project directory in Settings and click Refresh.';
+    grid.appendChild(warn);
     return;
   }
-
-  _allSdpFiles = res.data || [];
   await _populateHomeFilterProjects();
   _applyHomeFilter();
 }
@@ -1134,7 +1146,7 @@ async function _runPyStepsAll(sdpPath, captureDirs, selected) {
     const dir = captureDirs[i];
     showProg('analysis', 70 + Math.round((i / total) * 30), `python [${i + 1}/${total}] snapshot`);
     await new Promise(resolve => {
-      const targets = ['screenshot', 'mesh_stats', 'texture_stats', 'gles_decompile', 'ingest', 'label', 'status', 'topdc', 'analysis']
+      const targets = ['screenshot', 'mesh_stats', 'texture_stats', 'gles_decompile', 'ingest', 'label', 'status', 'topdc', 'report']
         .filter(k => pySelected.has(k)).join(',');
       if (!targets) { resolve(); return; }
       apiPost(`/api/jobs/pipeline?snapshot_dir=${encodeURIComponent(dir)}&targets=${encodeURIComponent(targets)}`, {})
@@ -1186,7 +1198,7 @@ async function _runPySteps(sdpPath, captureDir, selected) {
   if (pySelected.has('shaders')) pySelected.add('gles_decompile');
 
   // Build ordered targets from the user's selection
-  const targets = ['screenshot', 'mesh_stats', 'texture_stats', 'gles_decompile', 'ingest', 'label', 'status', 'topdc', 'analysis']
+  const targets = ['screenshot', 'mesh_stats', 'texture_stats', 'gles_decompile', 'ingest', 'label', 'status', 'topdc', 'report']
     .filter(k => pySelected.has(k)).join(',');
 
   if (!targets) {
@@ -1418,7 +1430,6 @@ async function saveAnalysisSettings() {
   const reportDir = document.getElementById('report-dir').value.trim();
   const snapshotId = document.getElementById('snapshot-id').value;
   const targets = selectedTargets();
-
   // Save to config.ini via API
   try {
     const res = await apiPost(`${FILES}/settings`, {
@@ -1555,6 +1566,7 @@ async function pmRefreshProjects() {
     item.onclick = () => pmSelectProject(p.id);
     list.appendChild(item);
   });
+  await _populateHomeFilterProjects();
 }
 
 async function pmSelectProject(pid) {
@@ -1688,11 +1700,17 @@ function buildSnapPanel(snap, tabId) {
   const wrap = document.createElement('div');
 
   // ── Analysis section (default open) ─────────────────────────────
-  wrap.appendChild(buildSection('Analysis', snap.analysis, snap.per_dc, true, tabId));
+  wrap.appendChild(buildSection('Analysis', snap.analysis, null, true, tabId));
   // ── Statistics section ──────────────────────────────────────────
   wrap.appendChild(buildSection('Statistics', snap.statistics, null, false, tabId));
   // ── Raw section ─────────────────────────────────────────────────
   wrap.appendChild(buildSection('Raw', snap.raw, null, false, tabId));
+
+  // Auto-load report.md if present
+  const reportFile = (snap.analysis || []).find(f => f.name.endsWith('_report.md'));
+  if (reportFile) {
+    setTimeout(() => viewFile(tabId, reportFile.path, reportFile.name, 'md', false), 0);
+  }
 
   return wrap;
 }
@@ -2303,18 +2321,16 @@ function refreshAllExplorerMetaBars() {
 function renderSnapScreenshot(tabId, snapRow) {
   const el = getTabEl(tabId);
   if (!el) return;
-  const container = el.querySelector('.explorer-snap-screenshot');
-  if (!container) return;
+  const containers = el.querySelectorAll('.explorer-snap-screenshot');
+  if (!containers.length) return;
 
-  if (!snapRow.screenshot) {
-    container.innerHTML = '';
-    return;
-  }
   const ts = getTabState(tabId);
   const isVulkan = ts && sdpApiCache[ts.sdpPath] === 'Vulkan';
   const rotateParam = isVulkan ? '&rotate=-90' : '';
-  const src = `${FILES}/image?path=${encodeURIComponent(snapRow.screenshot)}${rotateParam}`;
-  container.innerHTML = `<img class="snap-screenshot-img" src="${src}" alt="screenshot" onerror="this.style.display='none'">`;
+  const html = snapRow.screenshot
+    ? `<img class="snap-screenshot-img" src="${FILES}/image?path=${encodeURIComponent(snapRow.screenshot)}${rotateParam}" alt="screenshot" onerror="this.style.display='none'">`
+    : '';
+  containers.forEach(c => { c.innerHTML = html; });
 }
 
 async function reIngest(tabId) {
@@ -3214,7 +3230,15 @@ function _buildSublistItem(label, badge) {
 
   return {
     el,
-    setExpand(fn) { expandFn = fn; hdr.classList.add('dc-sublist-hdr--expandable'); },
+    setExpand(fn) {
+      expandFn = fn;
+      hdr.classList.add('dc-sublist-hdr--expandable');
+      // auto-expand immediately
+      expandEl.appendChild(expandFn());
+      loaded = true;
+      expandEl.style.display = '';
+      hdr.querySelector('.dc-sublist-chevron').textContent = '▼';
+    },
   };
 }
 
@@ -3930,6 +3954,7 @@ function _renderQTable(tabId, rows) {
   });
 
   const tbody = table.createTBody();
+
   rows.forEach(row => {
     const tr = tbody.insertRow();
     tr.dataset.cat = row.category;
@@ -3987,6 +4012,29 @@ function _renderQTable(tabId, rows) {
       }
     }
   });
+
+  // Total row — at the bottom
+  const totalTr = tbody.insertRow();
+  totalTr.style.cssText = 'font-weight:600;border-top:2px solid var(--border)';
+  const totalCatTd = totalTr.insertCell();
+  totalCatTd.textContent = 'Total';
+  totalCatTd.className = 'questions-category-cell';
+  const totalDcTd = totalTr.insertCell();
+  totalDcTd.textContent = rows.reduce((s, r) => s + (r.dc_count ?? 0), 0);
+  totalDcTd.style.textAlign = 'right';
+  _Q_AGGS.forEach(a => {
+    const td = totalTr.insertCell();
+    td.style.textAlign = 'right';
+    td.textContent = a === 'sum' ? _fmtK(rows.reduce((s, r) => s + (r.clocks?.sum ?? 0), 0)) : '—';
+  });
+  if (showSel) {
+    _Q_AGGS.forEach(a => {
+      const td = totalTr.insertCell();
+      td.style.textAlign = 'right';
+      td.textContent = a === 'sum' ? _fmtK(rows.reduce((s, r) => s + (r[metric]?.sum ?? 0), 0)) : '—';
+    });
+  }
+  if (showCorr) { const td = totalTr.insertCell(); td.textContent = '—'; td.style.textAlign = 'right'; }
 
   wrap.innerHTML = '';
   wrap.appendChild(table);

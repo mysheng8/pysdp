@@ -153,3 +153,19 @@ def reload() -> None:
     global _settings, _config_path
     with _lock:
         _settings, _config_path = _load()
+
+
+def resolve_project_subdir(key: str, default: str) -> "Path | None":
+    import logging
+    cfg = get_settings()
+    val = cfg.get(key, default)
+    p = Path(val)
+    if p.is_absolute():
+        return p
+    project = cfg.get("ProjectDir", "")
+    if not project:
+        logging.getLogger("pysdp").warning(
+            f"config: {key} is relative ('{val}') but ProjectDir is not set — cannot resolve path"
+        )
+        return None
+    return Path(project) / val

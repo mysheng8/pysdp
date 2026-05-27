@@ -72,6 +72,55 @@ def get_local_version() -> str | None:
     return None
 
 
+def get_sdpcli_config_path() -> Path | None:
+    """Return path to SDPCLI's config.ini if it exists."""
+    p = _INSTALL_DIR / "config.ini"
+    return p if p.exists() else None
+
+
+def sync_sdpcli_config() -> None:
+    """Sync tool paths from pysdp config.ini into SDPCLI's config.ini.
+
+    Reads WorkingDirectory/VulkanSDKPath/Ir3DisasmPath from the active pysdp
+    config and writes them into SDPCLI's config.ini. Skips empty values.
+    Uncomments commented-out keys if found; appends if missing entirely.
+    """
+    cfg_path = get_sdpcli_config_path()
+    if cfg_path is None:
+        return
+
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from config import get_settings as _get_cfg
+    cfg = _get_cfg()
+
+    updates = {k: v for k, v in {
+        "ProjectDir":    cfg.get("ProjectDir", ""),
+        "VulkanSDKPath": cfg.get("VulkanSDKPath", ""),
+        "Ir3DisasmPath": cfg.get("Ir3DisasmPath", ""),
+    }.items() if v}
+
+    if not updates:
+        return
+
+    lines = cfg_path.read_text(encoding="utf-8-sig").splitlines()
+    remaining = dict(updates)
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        for key, val in list(remaining.items()):
+            if stripped.startswith(f"{key}=") or stripped.startswith(f"# {key}="):
+                lines[i] = f"{key}={val}"
+                del remaining[key]
+                break
+
+    for key, val in remaining.items():
+        lines.append(f"{key}={val}")
+
+    cfg_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"  SDPCLI config updated: {', '.join(updates)}")
+
+
 def get_sdpcli_path() -> Path | None:
     """Resolve SDPCLI executable path (priority order)."""
     env_path = os.environ.get("PYSDP_SDPCLI_PATH")
@@ -122,6 +171,12 @@ def download(version: str, force: bool = False) -> Path:
 
     _VERSION_FILE.write_text(version)
     print(f"  Installed to: {_INSTALL_DIR}")
+
+    # Seed SDPCLI config with paths from pysdp config
+    try:
+        sync_sdpcli_config()
+    except Exception:
+        pass
 
     exe = _INSTALL_DIR / "SDPCLI.exe"
     if not exe.exists():

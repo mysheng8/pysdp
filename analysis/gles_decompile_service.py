@@ -216,8 +216,8 @@ def decompile_shaders(snapshot_dir: str | Path) -> dict:
     _t0 = _time.time()
 
     # Output directory
-    run_dir = snap.parent
-    shader_dir = run_dir / "shaders"
+    from analysis.snapshot_layout import resolve_asset_dir
+    shader_dir = resolve_asset_dir(snap, "shaders")
     shader_dir.mkdir(parents=True, exist_ok=True)
 
     max_lines = int(cfg.get("GlesLlmDecompileMaxLines", "2000"))
@@ -249,11 +249,13 @@ def decompile_shaders(snapshot_dir: str | Path) -> dict:
     written = 0
     deduped = 0
     errors = 0
+    empty_responses = 0
     cache_hits = 0
+    error_list: list[dict] = []
     lock = threading.Lock()
 
     def _process(item: tuple[tuple[str, int], list[int]]) -> None:
-        nonlocal written, deduped, errors, cache_hits
+        nonlocal written, deduped, errors, empty_responses, cache_hits
         (disasm_text, stage), pipeline_ids = item
 
         stage_label = {_GL_FRAGMENT_SHADER: "fragment", _GL_VERTEX_SHADER: "vertex"}.get(stage, "compute")
@@ -291,12 +293,20 @@ def decompile_shaders(snapshot_dir: str | Path) -> dict:
         if result is None:
             with lock:
                 errors += 1
+                error_list.append({"pipelines": pipeline_ids, "stage": stage_label, "reason": "llm_error"})
             _log.debug(f"[GlesDecompile] pipeline={pipeline_ids[0]} {stage_label} → LLM failed")
             return
 
         # Strip markdown fences
         result = re.sub(r"^```(?:glsl|c)?\n", "", result.strip())
         result = re.sub(r"\n```$", "", result)
+
+        if not result.strip():
+            with lock:
+                empty_responses += 1
+                error_list.append({"pipelines": pipeline_ids, "stage": stage_label, "reason": "empty_response"})
+            _log.warning(f"[GlesDecompile] pipeline={pipeline_ids[0]} {stage_label} → LLM returned empty content, skipping")
+            return
 
         # Store in decompile cache
         dcache.put(disasm_text, stage_label, result)
@@ -316,11 +326,14 @@ def decompile_shaders(snapshot_dir: str | Path) -> dict:
 
     dcache.save()
 
+    if error_list:
+        _log.warning(f"[GlesDecompile] {len(error_list)} failures: {error_list}")
+
     # Update shaders.json with .glsl file paths in shader_stages
     _patch_shaders_json(snap, shader_dir)
 
-    _log.info(f"[GlesDecompile] done: {_time.time()-_t0:.1f}s, written={written} deduped={deduped} cache_hits={cache_hits} errors={errors}")
-    return {"written": written, "skipped": skipped, "deduped": deduped, "cache_hits": cache_hits, "errors": errors}
+    _log.info(f"[GlesDecompile] done: {_time.time()-_t0:.1f}s, written={written} deduped={deduped} cache_hits={cache_hits} errors={errors} empty={empty_responses}")
+    return {"written": written, "skipped": skipped, "deduped": deduped, "cache_hits": cache_hits, "errors": errors, "empty_responses": empty_responses, "error_list": error_list}
 
 
 def _patch_shaders_json(snap: Path, shader_dir: Path) -> None:

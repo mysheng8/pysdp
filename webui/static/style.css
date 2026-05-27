@@ -93,7 +93,7 @@ main {
 
 .tab-content { display: none !important; }
 .tab-content.active { display: block !important; }
-.tab-content.explorer-tab.active { display: flex !important; flex-direction: column; height: calc(100vh - 104px); overflow: hidden; }
+.tab-content.explorer-tab.active { display: block !important; }
 
 /* ── Cards ─────────────────────────────────────────────────────── */
 .card {
@@ -1054,8 +1054,6 @@ table.explorer-dc-table {
 .subnav-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 
 .explorer-panel {
-  flex: 1;
-  overflow-y: auto;
   padding: 16px;
 }
 

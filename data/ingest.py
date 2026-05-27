@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from analysis.snapshot_layout import resolve_asset_dir as _rad
 from data.db import WorkspaceDB
 
 # All known metric snake_case keys (mirrors DrawCallModels.cs CounterToKey).
@@ -48,23 +49,22 @@ def _resolve_asset_path(snap: Path, rel: str) -> str:
 
     C# writes relative paths like '../../shaders/pipeline_X.hlsl'.  The relative
     anchor is ambiguous, so we use a two-step strategy:
-      1. Try to find the file by its basename in the run-level asset dirs
-         (run_dir/shaders/, run_dir/textures/, run_dir/meshes/) — reliable.
+      1. Try to find the file by its basename via resolve_asset_dir (handles new/legacy layouts).
       2. Fall back to joining snap/rel and resolving — works if path is already absolute.
     Returns empty string if rel is empty/None or the file cannot be found.
     """
     if not rel:
         return ""
-    run_dir = snap.parent
+    from analysis.snapshot_layout import resolve_asset_dir
     fname = Path(rel).name  # basename: 'pipeline_X.hlsl', 'mesh_N.obj', etc.
     # Determine sub-directory from extension / prefix
     suffix = Path(fname).suffix.lower()
     if suffix in (".hlsl", ".spv", ".glsl", ".disasm"):
-        candidate = run_dir / "shaders" / fname
+        candidate = resolve_asset_dir(snap, "shaders") / fname
     elif suffix == ".obj":
-        candidate = run_dir / "meshes" / fname
+        candidate = resolve_asset_dir(snap, "meshes") / fname
     elif suffix in (".png", ".jpg", ".jpeg", ".bmp"):
-        candidate = run_dir / "textures" / fname
+        candidate = resolve_asset_dir(snap, "textures") / fname
     else:
         candidate = None
 
@@ -111,7 +111,7 @@ def ingest_snapshot(db: WorkspaceDB, snapshot_dir: str | Path, project_id: str |
 
     shaders_raw   = _read_json(snap / "shaders.json")
     textures_raw  = _read_json(snap / "textures.json")
-    buffers_raw   = _read_json(snap.parent / "meshes" / "meshes.json")
+    buffers_raw   = _read_json(_rad(snap, "meshes") / "meshes.json")
     metrics_raw   = _read_json(snap / "metrics.json")
     label_raw     = _read_json(snap / "label.json")
 
@@ -119,7 +119,7 @@ def ingest_snapshot(db: WorkspaceDB, snapshot_dir: str | Path, project_id: str |
     # <run>/textures/textures.json has width/height/size for every extracted PNG.
     # Used to fill texture rows that C# textures.json leaves as None.
     _tex_stats: dict[int, dict] = {}
-    _tex_stats_path = snap.parent / "textures" / "textures.json"
+    _tex_stats_path = _rad(snap, "textures") / "textures.json"
     if _tex_stats_path.exists():
         try:
             _ts = json.loads(_tex_stats_path.read_text(encoding="utf-8-sig"))
@@ -354,9 +354,7 @@ def _ingest_all(
     texture_rows: list[tuple] = []
     dc_texture_rows: list[tuple] = []
 
-    # Run-level asset directories: siblings of snapshot_N/ under the run dir
-    # e.g.  .../analysis/<run>/snapshot_2/ → .../analysis/<run>/textures/
-    run_dir = snap.parent
+    tex_dir = _rad(snap, "textures")
 
     if textures_raw:
         texture_dcs: list[dict] = textures_raw.get("draw_calls") or textures_raw.get("textures") or []
@@ -374,7 +372,7 @@ def _ingest_all(
                         # Resolve texture file from run-level textures/ dir
                         tex_file = _resolve_asset_path(snap, t.get("file", "") or t.get("file_path", ""))
                         if not tex_file:
-                            candidate = run_dir / "textures" / f"texture_{tex_id}.png"
+                            candidate = tex_dir / f"texture_{tex_id}.png"
                             if candidate.exists():
                                 tex_file = str(candidate)
                         # Prefer Python-generated stats (width/height populated from PNG)
@@ -388,7 +386,7 @@ def _ingest_all(
                             t.get("format"),
                             t.get("layers"),
                             t.get("levels"),
-                            tex_file or (str(run_dir / "textures" / ts["file"]) if ts.get("file") else ""),
+                            tex_file or (str(tex_dir / ts["file"]) if ts.get("file") else ""),
                         ))
                     if api_id is not None:
                         dc_texture_rows.append((snapshot_id, api_id, tex_id))
@@ -400,9 +398,9 @@ def _ingest_all(
                     if tex_id not in texture_seen:
                         texture_seen.add(tex_id)
                         ts = _tex_stats.get(tex_id, {})
-                        candidate = run_dir / "textures" / f"texture_{tex_id}.png"
+                        candidate = tex_dir / f"texture_{tex_id}.png"
                         tex_file = str(candidate) if candidate.exists() else (
-                            str(run_dir / "textures" / ts["file"]) if ts.get("file") else ""
+                            str(tex_dir / ts["file"]) if ts.get("file") else ""
                         )
                         texture_rows.append((
                             snapshot_id, tex_id,

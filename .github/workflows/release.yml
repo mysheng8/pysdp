@@ -1,0 +1,37 @@
+name: Build & Release SDPCLI
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore SDPCLI/SDPCLI.csproj
+
+      - name: Build Release
+        run: msbuild SDPCLI/SDPCLI.csproj /p:Configuration=Release /p:Platform=x64
+
+      - name: Package release zip
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          .\SDPCLI\build_release.ps1 -Version $version
+
+      - name: Upload to sdpcli-releases
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: mysheng8/sdpcli-releases
+          tag_name: ${{ github.ref_name }}
+          files: release/SDPCLI-*.zip
+          token: ${{ secrets.RELEASES_PAT }}
