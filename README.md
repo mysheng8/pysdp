@@ -39,12 +39,10 @@ git clone https://github.com/mysheng8/pysdp && cd pysdp
 #
 #    # --- Paths ---
 #    PYSDP_PROJECT_DIR=D:/your/project           # SDP files and analysis output
-#    PYSDP_VULKAN_SDK_PATH=C:/VulkanSDK/1.x.x    # Vulkan SPIR-V → HLSL/GLSL via spirv-cross
-#                                                 # spirv-cross.exe is bundled in tools/
-#                                                 # (or install full SDK: https://vulkan.lunarg.com/sdk/home)
-#    PYSDP_IR3_DISASM_PATH=tools/ir3-disasm.exe   # GLES IR3 disassembly (included in repo)
-#                                                 # Source: Mesa freedreno
-#                                                 # https://gitlab.freedesktop.org/mesa/mesa
+#    # spirv-cross and ir3-disasm are bundled in the SDPCLI package — no path config needed.
+#    # Override only if using a custom build:
+#    # PYSDP_VULKAN_SDK_PATH=C:/VulkanSDK/1.x.x
+#    # PYSDP_IR3_DISASM_PATH=C:/path/to/ir3-disasm.exe
 #
 #    # --- LLM (DrawCall labeling / report generation) ---
 #    PYSDP_LLM_API_ENDPOINT=https://...
@@ -308,7 +306,7 @@ Set `PyLogLevel=debug|info|warning|error` in `config.ini` or `PYSDP_LOG_LEVEL` e
 
 ## GLES Shader Decompile (ir3-disasm)
 
-GLES captures use Adreno IR3 disassembly. `ir3-disasm` is built from [Mesa freedreno](https://gitlab.freedesktop.org/mesa/mesa) and must be configured via `PYSDP_IR3_DISASM_PATH`. The chip ID is auto-detected at runtime from `dc.json`; override with `PYSDP_IR3_CHIP_ID` if needed.
+GLES captures use Adreno IR3 disassembly. `ir3-disasm` ([Mesa freedreno](https://gitlab.freedesktop.org/mesa/mesa)) is bundled in the SDPCLI package — no manual configuration needed. The chip ID is detected automatically by SDPCLI at capture time.
 
 Supported Adreno GPUs:
 
