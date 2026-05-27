@@ -14,3 +14,4 @@ decompile_cache.json
 .thumbnails/
 *.pyc
 _debug_prompt.txt
+.claude/
