@@ -15,6 +15,7 @@ Browser (localhost:8000)
         ├── /api/jobs/*      ──►  C# extraction + Python analysis triggers
         ├── /api/files/*     ──►  Local file serving (read-only)
         ├── /api/data/*      ──►  DuckDB data queries (MCP-exposed)
+        ├── /api/chat/*      ──►  AI assistant (LLM chat with GPU data context)
         ├── /api/events      ──►  SSE real-time push (data change notifications)
         └── /api/logs/*      ──►  Log streaming
 
@@ -39,45 +40,43 @@ git clone https://github.com/mysheng8/pysdp && cd pysdp
 #
 #    # --- Paths ---
 #    PYSDP_PROJECT_DIR=D:/your/project           # SDP files and analysis output
-#    # spirv-cross and ir3-disasm are bundled in the SDPCLI package — no path config needed.
-#    # Override only if using a custom build:
-#    # PYSDP_VULKAN_SDK_PATH=C:/VulkanSDK/1.x.x
-#    # PYSDP_IR3_DISASM_PATH=C:/path/to/ir3-disasm.exe
 #
-#    # --- LLM (DrawCall labeling / report generation) ---
+#    # --- LLM (DrawCall labeling / IR3→GLSL decompile / report generation) ---
+#    # 高频批量调用（每帧数百次），用最便宜的轻量模型
 #    PYSDP_LLM_API_ENDPOINT=https://...
 #    PYSDP_LLM_API_KEY=sk-...
 #    PYSDP_LLM_MODEL=vertex_ai/gemini-2.5-flash-lite
 #
-#    # --- VLM (screenshot description) ---
+#    # --- VLM (screenshot scene description) ---
+#    # 需要视觉理解能力，用支持图片输入的多模态模型
 #    PYSDP_VLM_API_ENDPOINT=https://...
 #    PYSDP_VLM_API_KEY=sk-...
 #    PYSDP_VLM_MODEL=...
 #
-#    # --- Chat AI (WebUI sidebar) ---
+#    # --- Chat AI (WebUI sidebar assistant) ---
+#    # 交互式对话，需要较强推理能力，用中等或高端模型
 #    PYSDP_CHAT_API_ENDPOINT=https://...
 #    PYSDP_CHAT_API_KEY=sk-...
 #    PYSDP_CHAT_MODEL=vertex_ai/gemini-2.5-flash
 #
 #    See config.ini for all available keys and their defaults.
 
-# 3. Install: creates .venv, installs Python deps, downloads SDPCLI binary,
-#             seeds SDPCLI config.ini with paths from .env
+# 3. Install: creates .venv, installs Python deps, downloads SDPCLI binary
 .\install.ps1
 
 # 4. Start
 .\webui.ps1
 ```
 
-`webui.ps1` automatically: kills stale port processes → syncs `.env` paths into SDPCLI config → starts SDPCLI Server (if available) → starts WebUI → opens browser. Press **ESC** to stop all processes.
+`webui.ps1` automatically: kills stale port processes → loads `.env` → starts SDPCLI Server with `-projectdir` (if available) → starts WebUI → opens browser. Press **ESC** to stop all processes.
 
 Open **http://localhost:8000** in your browser.
 
 > API docs (Swagger): **http://localhost:8000/api/docs**
 
-### Without SDPCLI (offline / analysis-only)
+### SDPCLI requirement
 
-If SDPCLI binary is not found, `webui.ps1` starts in offline mode — all analysis features work, only live device capture is unavailable.
+pySdp requires SDPCLI for both live capture and offline analysis (C# extraction step). `install.ps1` downloads it automatically; if missing, `webui.ps1` will fail to start.
 
 ### Custom ports / project directory
 
@@ -91,6 +90,7 @@ If SDPCLI binary is not found, `webui.ps1` starts in offline mode — all analys
 ### SDPCLI binary location
 
 `install.ps1` downloads SDPCLI to `%USERPROFILE%\.pysdp\sdpcli\SDPCLI.exe`.  
+To force re-download (e.g. after version bump in `pyproject.toml`): `.\install.ps1 -Force`  
 To use a custom binary, set `PYSDP_SDPCLI_PATH=C:\path\to\SDPCLI.exe` in `.env` before running `webui.ps1`.
 
 ---
@@ -107,6 +107,7 @@ pySdp/
 │   │   ├── jobs_router.py     # /api/jobs/*        → Extraction/analysis step triggers (C# + Python)
 │   │   ├── files.py           # /api/files/*       → File browsing and serving (read-only)
 │   │   ├── data.py            # /api/data/*        → DuckDB query endpoints (MCP-exposed)
+│   │   ├── chat.py            # /api/chat/*        → AI assistant (LLM chat with GPU data context)
 │   │   └── logs.py            # /api/logs/*        → WebUI log streaming
 │   ├── events.py              # SSE event bus (publish/subscribe + /api/events endpoint)
 │   ├── jobs.py                # Server-side Pipeline Job (background threads + state management)
@@ -138,6 +139,14 @@ pySdp/
 │   ├── model_registry.py      # Analysis model registry
 │   ├── questions.py           # Questions CRUD
 │   └── dashboards.py          # Dashboards CRUD
+├── chat/
+│   ├── __init__.py            # Chat module init
+│   ├── llm_client.py          # LLM client for chat
+│   ├── prompts.py             # System prompt builder
+│   ├── tools.py               # Tool definitions for AI assistant
+│   ├── skills.py              # Skill registry
+│   ├── sandbox.py             # Code execution sandbox
+│   └── skills/                # Built-in analysis skills (breakdown, bottlenecks, compare, etc.)
 ├── pysdp/
 │   ├── client.py              # SdpClient (synchronous blocking API)
 │   ├── _jobs.py               # JobPoller
@@ -156,14 +165,14 @@ pySdp/
 ### Home Tab
 
 - **SDP Files**: Scans directory and displays `.sdp` file cards; click Explore to open analysis; "+" card opens New Capture modal
-- **New Capture Modal**: Three-step workflow (Connect → Launch → Capture)
+- **New Capture Modal**: Four-step workflow (Project & Version → Connect → Launch → Capture)
 - **Settings Modal**: Configure SDP / Analysis directories, Snapshot ID, analysis targets
 - **Analysis Progress Modal**: Floating progress panel showing stage and percentage
 
 ### Explorer Modal (Questions / Explorer / Results sub-tabs)
 
 - **Questions**: R² correlation analysis (0-1 range), Pie / Bar charts, metric button toggles
-- **Explorer**: DrawCall list (Category filter, clock bar chart); DC Detail panel with Metrics · Textures · OBJ 3D · Shaders (GLSL ↔ DISASM toggle + Recompile / Relabel buttons)
+- **Explorer**: DrawCall list (Category filter, clock bar chart, Params/Metrics/Label tabs); Params tab shows DC parameters with expandable setpass tree; DC Detail panel with Metrics · Textures · OBJ 3D · Shaders (GLSL ↔ DISASM toggle + Recompile / Relabel buttons)
 - **Results**: Snapshot file viewer, inline preview for JSON / Markdown
 - Smart screenshot rotation: only portrait screenshots are rotated to landscape
 
@@ -194,9 +203,9 @@ Routes are grouped by purpose:
 | `/api/jobs/*` | `jobs` | Trigger C# extraction + Python analysis steps |
 | `/api/files/*` | `files` | Read-only file serving |
 | `/api/data/*` | `data` | DuckDB data queries (MCP-exposed) |
+| `/api/chat/*` | `chat` | AI assistant (LLM chat with GPU profiling context) |
 | `/api/events` | — | SSE real-time push (data changes → browser auto-refresh) |
 
-See [docs/explanations/EXPLAIN-api.md](../docs/explanations/EXPLAIN-api.md) for detailed endpoint list.
 
 ---
 
@@ -209,16 +218,18 @@ Singleton DuckDB connection with the following schema:
 | Table | Description |
 |---|---|
 | `snapshots` | Metadata for each ingest (path, sdp_name, snap_index, ingested_at) |
-| `draw_calls` | DC base parameters (api_id, vertex count, instance count, etc.) |
+| `draw_calls` | DC base parameters (api_id, vertex count, instance count, parameters, etc.) |
+| `setpass` | Per-DC state-setting calls (call_id, call_name, parameters) |
 | `labels` | Classification results (category, subcategory, confidence, reason_tags) |
 | `metrics` | GPU counters (clocks, fragments_shaded, tex_fetch_stall_pct, ~50 columns) |
-| `shader_stages` | Pipeline → Shader Stage mapping |
-| `textures` / `meshes` | Asset paths |
+| `shader_stages` / `dc_shader_stages` | Pipeline → Shader Stage mapping + per-DC binding |
+| `textures` / `dc_textures` / `meshes` | Asset metadata + per-DC binding |
+| `dc_render_targets` | Per-DC render target attachments (format, dimensions) |
 | `questions` / `dashboards` | User-defined analysis queries |
 
 ### ingest.py
 
-`ingest_snapshot(db, snapshot_dir)` — Idempotent, safe to call repeatedly. Reads `dc.json`, `label.json`, `metrics.json`, `shaders.json`, `textures.json`, `buffers.json` and writes to DuckDB. `snapshot_dir` is the unique key; `snap_index` preserves the original C# numbering.
+`ingest_snapshot(db, snapshot_dir)` — Idempotent, safe to call repeatedly. Reads `dc.json` (including inline `setpass` arrays), `label.json`, `metrics.json`, `shaders.json`, `textures.json`, `buffers.json` and writes to DuckDB. `snapshot_dir` is the unique key; `snap_index` preserves the original C# numbering. Shader stage names are normalized to title-case on ingest to prevent duplicates.
 
 ---
 
@@ -286,7 +297,6 @@ Settings are resolved in priority order:
 1. **Environment variables** (`PYSDP_*`) — highest priority
 2. **`.env` file** — for local development secrets (git-ignored)
 3. **`config.ini`** — committed defaults (no secrets)
-4. **`../SDPCLI/config.ini` + `secrets.ini`** — monorepo fallback (auto-detected)
 
 See `.env.example` for available variables.
 
@@ -300,7 +310,7 @@ Set `PyLogLevel=debug|info|warning|error` in `config.ini` or `PYSDP_LOG_LEVEL` e
 
 - **DuckDB connection**: `WorkspaceDB` is an in-process singleton; all queries use `db.cursor()` (independent cursors)
 - **snapshot_id conflicts**: `snapshot_dir` is the unique key; C# session-local numbering may overlap, ingest auto-assigns globally unique IDs while `snap_index` preserves original numbering
-- **Render Targets**: Not stored in DuckDB, read at runtime from `dc.json`; GLES captures correctly distinguish Color / Depth / Stencil attachment types
+- **Render Targets**: Stored in `dc_render_targets` table; GLES captures correctly distinguish Color / Depth / Stencil attachment types
 - **Screenshot**: Prefers analysis directory cache, falls back to extracting from `.sdp` ZIP at `snapshot_N/*.bmp`
 - **GLES Shader format**: Vulkan outputs HLSL ([spirv-cross](https://vulkan.lunarg.com/sdk/home)), GLES outputs GLSL (IR3→LLM decompile) or raw IR3 disasm ([Mesa freedreno ir3-disasm](https://gitlab.freedesktop.org/mesa/mesa)); `label_service` handles both transparently
 - **MCP**: Exposes 19 read-only query endpoints via `fastapi-mcp`; mount point `/mcp`

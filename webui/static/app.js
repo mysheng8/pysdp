@@ -3155,7 +3155,25 @@ function renderExplorerDCDetail(tabId, container, dc) {
             toggle.appendChild(recompBtn);
             wrap.appendChild(toggle);
             wrap.appendChild(content);
-            loadFile(srcPath);
+            // Check if GLSL/HLSL source exists; if not, show only raw disasm
+            fetch(`${FILES}/raw?path=${encodeURIComponent(srcPath)}`, { method: 'HEAD' })
+              .then(r => {
+                if (r.ok) {
+                  loadFile(srcPath);
+                } else {
+                  btnSrc.disabled = true;
+                  btnSrc.style.opacity = '0.4';
+                  btnSrc.style.cursor = 'default';
+                  btnRaw.style.background = 'var(--bg-card)';
+                  loadFile(rawPath);
+                }
+              })
+              .catch(() => {
+                btnSrc.disabled = true;
+                btnSrc.style.opacity = '0.4';
+                btnRaw.style.background = 'var(--bg-card)';
+                loadFile(rawPath);
+              });
           } else {
             const dlRow = document.createElement('div');
             dlRow.style.cssText = 'display:flex;margin-bottom:4px';
@@ -3178,7 +3196,7 @@ function renderExplorerDCDetail(tabId, container, dc) {
     });
     shadersSection.body.appendChild(list);
   } else {
-    shadersSection.body.innerHTML = '<span class="muted" style="font-size:12px">No shaders.</span>';
+    shadersSection.body.innerHTML = '<span class="muted" style="font-size:12px">No shader extracted — chip may not be supported by ir3-disasm.</span>';
   }
   // Textures sub-list
   const texSection = _buildDetailSection(`Textures (${(dc.textures||[]).length})`, true);

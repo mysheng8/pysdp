@@ -1,3 +1,6 @@
+param(
+    [switch]$Force
+)
 Set-StrictMode -Off
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
@@ -23,8 +26,13 @@ Write-Host " Installing requirements..."
 if ($LASTEXITCODE -ne 0) { Write-Error "pip install failed"; exit 1 }
 
 # ── Download SDPCLI ───────────────────────────────────────────────────────────
-Write-Host " Checking SDPCLI..."
-& $venv -m scripts.fetch_sdpcli
+if ($Force) {
+    Write-Host " Force updating SDPCLI..."
+    & $venv -m scripts.fetch_sdpcli --force
+} else {
+    Write-Host " Checking SDPCLI..."
+    & $venv -m scripts.fetch_sdpcli
+}
 if ($LASTEXITCODE -ne 0) { Write-Error "SDPCLI download failed"; exit 1 }
 
 Write-Host "`n Install complete. Run .\webui.ps1 to start."
