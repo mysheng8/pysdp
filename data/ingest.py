@@ -241,6 +241,7 @@ def _ingest_all(
             _parse_api_id(dc.get("dc_id")),
             dc.get("api_name", ""),
             dc.get("pipeline_id"),
+            dc.get("parameters", ""),
             dc.get("vertex_count", 0),
             dc.get("index_count", 0),
             dc.get("instance_count", 0),
@@ -257,11 +258,39 @@ def _ingest_all(
     ]
     if dc_rows:
         conn.executemany(
-            "INSERT OR REPLACE INTO draw_calls VALUES "
-            "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO draw_calls "
+            "(snapshot_id, api_id, dc_id, api_name, pipeline_id, parameters, "
+            " vertex_count, index_count, instance_count, first_vertex, first_index, "
+            " vertex_offset, first_instance, draw_count, "
+            " group_count_x, group_count_y, group_count_z) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             dc_rows,
         )
     counts["draw_calls"] = len(dc_rows)
+
+    # ── setpass (state-setting calls before each DC) ─────────────────────────────
+    setpass_rows: list[tuple] = []
+    for dc in draw_calls:
+        api_id = _parse_api_id(dc.get("api_id"))
+        if not api_id:
+            continue
+        for sp in (dc.get("setpass") or []):
+            call_id = sp.get("id")
+            if call_id is None:
+                continue
+            setpass_rows.append((
+                snapshot_id,
+                api_id,
+                call_id,
+                sp.get("name", ""),
+                sp.get("parameters", ""),
+            ))
+    if setpass_rows:
+        conn.executemany(
+            "INSERT OR REPLACE INTO setpass VALUES (?, ?, ?, ?, ?)",
+            setpass_rows,
+        )
+    counts["setpass"] = len(setpass_rows)
 
     # ── shader_stages (from dc.json inline stages, deduped by (snapshot_id, pipeline_id, stage)) ──
     shader_stage_seen: set[tuple] = set()
@@ -275,7 +304,7 @@ def _ingest_all(
             continue
         stages: list[dict] = dc.get("shader_stages") or []
         for s in stages:
-            stage = s.get("stage", "")
+            stage = s.get("stage", "").capitalize()
             module_id   = s.get("module_id")
             entry_point = s.get("entry_point", "")
             file_path   = _resolve_asset_path(snap, s.get("file", "") or s.get("file_path", ""))
@@ -314,7 +343,7 @@ def _ingest_all(
                                     "file": sf,
                                 })
                 for s in stages:
-                    stage       = s.get("stage", "")
+                    stage       = s.get("stage", "").capitalize()
                     module_id   = s.get("module_id")
                     entry_point = s.get("entry_point", "")
                     file_path   = _resolve_asset_path(snap, s.get("file", "") or s.get("file_path", ""))

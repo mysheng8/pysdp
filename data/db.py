@@ -97,6 +97,17 @@ _SCHEMA_STMTS = [
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS setpass (
+        snapshot_id   INTEGER NOT NULL,
+        api_id        INTEGER NOT NULL,
+        call_id       INTEGER NOT NULL,
+        call_name     TEXT    NOT NULL DEFAULT '',
+        parameters    TEXT    NOT NULL DEFAULT '',
+        PRIMARY KEY (snapshot_id, api_id, call_id),
+        FOREIGN KEY (snapshot_id, api_id) REFERENCES draw_calls(snapshot_id, api_id)
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS labels (
         snapshot_id     INTEGER     NOT NULL,
         api_id          INTEGER     NOT NULL,
@@ -315,6 +326,7 @@ class WorkspaceDB:
             ("meshes", "bbox_min",     "DOUBLE[]"),
             ("meshes", "bbox_max",     "DOUBLE[]"),
             # draw_calls — extended params
+            ("draw_calls", "parameters",                  "TEXT DEFAULT ''"),
             ("draw_calls", "instance_count",              "INTEGER DEFAULT 0"),
             ("draw_calls", "first_vertex",                "INTEGER DEFAULT 0"),
             ("draw_calls", "first_index",                 "INTEGER DEFAULT 0"),

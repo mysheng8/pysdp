@@ -1,12 +1,23 @@
 param(
     [int]   $Port       = 8000,
     [string]$BindHost   = "127.0.0.1",
-    [int]   $SdpcliPort = 5000
+    [int]   $SdpcliPort = 5000,
+    [string]$ProjectDir = ""
 )
 
 Set-StrictMode -Off
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
+
+# ── Load .env file into environment ──────────────────────────────────────────
+$envFile = "$root\.env"
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        if ($_ -match '^\s*([^#][^=]+)=(.*)$') {
+            [Environment]::SetEnvironmentVariable($Matches[1].Trim(), $Matches[2].Trim(), "Process")
+        }
+    }
+}
 
 # ── Kill stale processes on target ports ─────────────────────────────────────
 foreach ($p in @($Port, $SdpcliPort)) {
@@ -30,10 +41,12 @@ if ($env:PYSDP_SDPCLI_PATH -and (Test-Path $env:PYSDP_SDPCLI_PATH)) {
     $sdpcliExe = "$env:USERPROFILE\.pysdp\sdpcli\SDPCLI.exe"
 }
 
-# ── Sync paths from .env / config into SDPCLI config.ini ─────────────────────
-if ($sdpcliExe) {
-    Write-Host " Syncing paths to SDPCLI config..."
-    & $python -m scripts.fetch_sdpcli --sync-config
+# ── Resolve ProjectDir ────────────────────────────────────────────────────────
+if (-not $ProjectDir -and $env:PYSDP_PROJECT_DIR) {
+    $ProjectDir = $env:PYSDP_PROJECT_DIR
+}
+if ($ProjectDir) {
+    $env:PYSDP_PROJECT_DIR = $ProjectDir
 }
 
 # ── Start SDPCLI Server (optional — skipped if binary not found) ──────────────
@@ -43,9 +56,10 @@ if (-not $sdpcliExe) {
     Write-Host "        Run .\install.ps1 to download SDPCLI, or set PYSDP_SDPCLI_PATH."
 } else {
     $sdpcliDir = Split-Path $sdpcliExe
+    $projectArg = if ($ProjectDir) { " -projectdir `"$ProjectDir`"" } else { "" }
     Write-Host "`n Starting SDPCLI Server on port $SdpcliPort..."
     $sdpcliProc = Start-Process "cmd" `
-        -ArgumentList "/k cd /d `"$sdpcliDir`" && `"$sdpcliExe`" server --port $SdpcliPort" `
+        -ArgumentList "/k cd /d `"$sdpcliDir`" && `"$sdpcliExe`" server --port $SdpcliPort$projectArg" `
         -WindowStyle Normal -PassThru
 
     # Wait for SDPCLI to be ready

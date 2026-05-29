@@ -163,7 +163,7 @@ def download(version: str, force: bool = False) -> Path:
     print(f"  Downloaded {len(data) / 1024 / 1024:.1f} MB")
 
     if _INSTALL_DIR.exists():
-        shutil.rmtree(_INSTALL_DIR)
+        shutil.rmtree(_INSTALL_DIR, ignore_errors=True)
     _INSTALL_DIR.mkdir(parents=True, exist_ok=True)
 
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
@@ -171,12 +171,6 @@ def download(version: str, force: bool = False) -> Path:
 
     _VERSION_FILE.write_text(version)
     print(f"  Installed to: {_INSTALL_DIR}")
-
-    # Seed SDPCLI config with paths from pysdp config
-    try:
-        sync_sdpcli_config()
-    except Exception:
-        pass
 
     exe = _INSTALL_DIR / "SDPCLI.exe"
     if not exe.exists():

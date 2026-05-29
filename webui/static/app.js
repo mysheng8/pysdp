@@ -1063,7 +1063,8 @@ function goAnalyze(sdpPath, captureId) {
     localStorage.setItem('sdpDir', parentDir);
   }
   document.getElementById('snapshot-id').value = captureId ?? 2;
-  switchTab('home');  // triggers scanSdpFiles if dir is set
+  closeModal('snapshot-modal');
+  doAnalyze(sdpPath);
 }
 
 async function doAnalyze(sdpPath) {
@@ -2526,19 +2527,13 @@ function _dcColDefs(tab) {
   const NAME  = { key: 'api_name', label: 'API Name', val: dc => dc.api_name || '—' };
 
   if (tab === 'params') return [
-    SEQ, APID, NAME,
-    { key: 'vertex_count',   label: 'Verts',    val: dc => dc.vertex_count   ?? '—' },
-    { key: 'index_count',    label: 'Indices',  val: dc => dc.index_count    ?? '—' },
-    { key: 'instance_count', label: 'Inst',     val: dc => dc.instance_count ?? '—' },
-    { key: 'first_vertex',   label: 'fVtx',     val: dc => dc.first_vertex   ?? '—' },
-    { key: 'first_index',    label: 'fIdx',     val: dc => dc.first_index    ?? '—' },
-    { key: 'vertex_offset',  label: 'vOff',     val: dc => dc.vertex_offset  ?? '—' },
-    { key: 'first_instance', label: 'fInst',    val: dc => dc.first_instance ?? '—' },
-    { key: 'draw_count',     label: 'drawCnt',  val: dc => dc.draw_count     ?? '—' },
+    { key: 'dc_id', label: 'DC', val: dc => dc.dc_id ?? '—' },
+    NAME,
+    { key: 'parameters', label: 'Parameters', val: dc => dc.parameters || '—', wide: true },
   ];
 
   if (tab === 'metrics') return [
-    SEQ, APID, NAME,
+    SEQ, NAME,
     { key: 'clocks',                 label: 'Clocks',        val: dc => dc.clocks               ?? '—' },
     { key: 'fragments_shaded',       label: 'Frags',         val: dc => dc.fragments_shaded      ?? '—' },
     { key: 'vertices_shaded',        label: 'Verts',         val: dc => dc.vertices_shaded       ?? '—' },
@@ -2555,7 +2550,7 @@ function _dcColDefs(tab) {
 
   // label tab
   return [
-    SEQ, APID, NAME,
+    SEQ, NAME,
     { key: 'category',     label: 'Category',   val: dc => dc.category     || '—' },
     { key: 'subcategory',  label: 'Subcategory',val: dc => dc.subcategory  || '—' },
     { key: 'detail',       label: 'Detail',     val: dc => dc.detail       || '—' },
@@ -2616,6 +2611,11 @@ function renderExplorerDCTable(tabId, dcs) {
   // Header
   const thead = table.createTHead();
   const hrow  = thead.insertRow();
+  if (ts.explorerState.colTab === 'params') {
+    const thToggle = document.createElement('th');
+    thToggle.style.width = '20px';
+    hrow.appendChild(thToggle);
+  }
   cols.forEach(col => {
     const th = document.createElement('th');
     const isSorted = col.key === sortCol;
@@ -2637,22 +2637,116 @@ function renderExplorerDCTable(tabId, dcs) {
   });
 
   // Body
+  const isParamsTab = ts.explorerState.colTab === 'params';
   const tbody = table.createTBody();
   rows.forEach(({ dc, seq }) => {
     const tr = tbody.insertRow();
     tr.className = 'dc-row' + (dc.api_id === ts.explorerState.selectedApiId ? ' active' : '');
     tr.onclick = () => loadExplorerDCDetail(tabId, dc.api_id);
 
-    cols.forEach((col, ci) => {
-      const td = tr.insertCell();
-      const val = col.val(dc, seq - 1);
-      td.textContent = val;
-      if (ci === 0) td.className = 'dc-seq-cell';  // seq column styling
-    });
+    if (isParamsTab) {
+      const tdToggle = tr.insertCell();
+      tdToggle.className = 'dc-seq-cell dc-setpass-toggle';
+      tdToggle.textContent = '▶';
+      tdToggle.onclick = (e) => {
+        e.stopPropagation();
+        const expanded = tr.getAttribute('data-sp-expanded') === '1';
+        if (expanded) {
+          let next = tr.nextElementSibling;
+          while (next && next.classList.contains('dc-setpass-row')) {
+            next.style.display = 'none';
+            next = next.nextElementSibling;
+          }
+          tr.setAttribute('data-sp-expanded', '0');
+          tdToggle.textContent = '▶';
+        } else if (tr.getAttribute('data-sp-loaded') === '1') {
+          let next = tr.nextElementSibling;
+          while (next && next.classList.contains('dc-setpass-row')) {
+            next.style.display = '';
+            next = next.nextElementSibling;
+          }
+          tr.setAttribute('data-sp-expanded', '1');
+          tdToggle.textContent = '▼';
+        } else {
+          tdToggle.textContent = '▼';
+          tr.setAttribute('data-sp-expanded', '1');
+          tr.setAttribute('data-sp-loaded', '1');
+          _insertSetpassRows(tabId, tr, dc.api_id);
+        }
+      };
+      cols.forEach(col => {
+        const td = tr.insertCell();
+        td.textContent = col.val(dc, seq - 1);
+        if (col.key === 'parameters') td.className = 'dc-call-cell dc-wide-cell';
+      });
+    } else {
+      cols.forEach((col, ci) => {
+        const td = tr.insertCell();
+        const val = col.val(dc, seq - 1);
+        td.textContent = val;
+        if (ci === 0) td.className = 'dc-seq-cell';
+      });
+    }
   });
 
   container.innerHTML = '';
   container.appendChild(table);
+
+  _setupDcTableScroll(container, table);
+}
+
+function _setupDcTableScroll(container, table) {
+  // Top scrollbar
+  let topScroll = container.previousElementSibling;
+  if (topScroll && topScroll.classList.contains('explorer-dc-top-scroll')) {
+    topScroll.remove();
+  }
+  topScroll = document.createElement('div');
+  topScroll.className = 'explorer-dc-top-scroll';
+  const inner = document.createElement('div');
+  inner.className = 'explorer-dc-top-scroll-inner';
+  topScroll.appendChild(inner);
+  container.parentNode.insertBefore(topScroll, container);
+
+  const syncWidth = () => { inner.style.width = table.scrollWidth + 'px'; };
+  syncWidth();
+  let syncing = false;
+  topScroll.onscroll = () => { if (!syncing) { syncing = true; container.scrollLeft = topScroll.scrollLeft; syncing = false; } };
+  container.onscroll = () => { if (!syncing) { syncing = true; topScroll.scrollLeft = container.scrollLeft; syncing = false; } };
+  new ResizeObserver(syncWidth).observe(table);
+
+}
+
+// ── Setpass lazy-load into table rows ────────────────────────────────────────
+
+function _insertSetpassRows(tabId, dcRow, apiId) {
+  const ts = getTabState(tabId);
+  const snapId = ts.explorerState.snapshotId;
+
+  fetch(`/api/data/setpass/${apiId}?snapshot_id=${snapId}`)
+    .then(r => r.json())
+    .then(res => {
+      if (!res.ok || !res.data || res.data.length === 0) return;
+      let insertAfter = dcRow;
+      res.data.forEach(sp => {
+        const spTr = document.createElement('tr');
+        spTr.className = 'dc-setpass-row';
+        // toggle col (empty)
+        spTr.insertCell();
+        // DC col (empty)
+        spTr.insertCell();
+        // Name col
+        const tdName = spTr.insertCell();
+        tdName.className = 'dc-setpass-call';
+        tdName.textContent = sp.call_name;
+        // Parameters col
+        const tdParams = spTr.insertCell();
+        tdParams.className = 'dc-setpass-call dc-wide-cell';
+        tdParams.textContent = sp.parameters;
+        insertAfter.after(spTr);
+        insertAfter = spTr;
+      });
+    });
 }
 
 // ── DC clock bar chart ────────────────────────────────────────────────────────

@@ -79,11 +79,14 @@ Open **http://localhost:8000** in your browser.
 
 If SDPCLI binary is not found, `webui.ps1` starts in offline mode — all analysis features work, only live device capture is unavailable.
 
-### Custom ports
+### Custom ports / project directory
 
 ```powershell
-.\webui.ps1 -Port 8080 -SdpcliPort 5001
+.\webui.ps1 -ProjectDir D:\your\project
+.\webui.ps1 -Port 8080 -SdpcliPort 5001 -ProjectDir D:\your\project
 ```
+
+`-ProjectDir` 同时传给 SDPCLI（`-projectdir` 参数）和 WebUI（`PYSDP_PROJECT_DIR` 环境变量），无需手动配置。
 
 ### SDPCLI binary location
 

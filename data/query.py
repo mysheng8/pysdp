@@ -72,6 +72,7 @@ def get_draw_calls(
             dc.dc_id,
             dc.api_name,
             dc.pipeline_id,
+            dc.parameters,
             dc.vertex_count,
             dc.index_count,
             dc.instance_count,
@@ -129,6 +130,21 @@ def get_draw_calls(
         rows = [r for r in rows if tag_set.intersection(r.get("reason_tags") or [])]
 
     return rows
+
+
+def get_setpass(db: WorkspaceDB, snapshot_id: int, api_id: int) -> list[dict]:
+    """Return setpass calls for a specific DC."""
+    snap_clause, snap_params = _snap_where(snapshot_id)
+    where = f"WHERE {snap_clause} AND api_id = ?" if snap_clause else "WHERE api_id = ?"
+    params = snap_params + [api_id]
+    sql = f"""
+        SELECT call_id, call_name, parameters
+        FROM setpass
+        {where}
+        ORDER BY call_id
+    """
+    result = db.conn().execute(sql, params)
+    return _rows_to_dicts(result)
 
 
 def get_labels(db: WorkspaceDB, snapshot_id: int) -> dict[int, dict]:
@@ -270,8 +286,8 @@ def get_dc_detail(db: WorkspaceDB, snapshot_id: int, api_id: int) -> dict | None
     else:
         dc["metric_stats"] = {}
 
-    # ── Shader stages ────────────────────────────────────────────────────────────
-    dc["shader_stages"] = _rows_to_dicts(db.cursor().execute(
+    # ── Shader stages (deduplicated by pipeline_id + stage, case-insensitive) ───
+    raw_stages = _rows_to_dicts(db.cursor().execute(
         """
         SELECT ss.pipeline_id, ss.stage, ss.module_id, ss.entry_point, ss.file_path
         FROM dc_shader_stages dcs
@@ -284,6 +300,18 @@ def get_dc_detail(db: WorkspaceDB, snapshot_id: int, api_id: int) -> dict | None
         """,
         [snapshot_id, api_id],
     ))
+    seen_stages: dict[tuple, dict] = {}
+    for s in raw_stages:
+        key = (s["pipeline_id"], s["stage"].lower())
+        if key not in seen_stages:
+            s["stage"] = s["stage"].capitalize()
+            seen_stages[key] = s
+        else:
+            existing = seen_stages[key]
+            if not existing.get("module_id") and s.get("module_id"):
+                s["stage"] = s["stage"].capitalize()
+                seen_stages[key] = s
+    dc["shader_stages"] = list(seen_stages.values())
 
     # ── Textures ─────────────────────────────────────────────────────────────────
     dc["textures"] = _rows_to_dicts(db.cursor().execute(

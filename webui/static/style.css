@@ -908,17 +908,17 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 }
 
 /* ── Explorer: DC table ────────────────────────────────────────── */
-.explorer-dc-card { overflow: hidden; }
+.explorer-dc-card { overflow: visible; }
 div.explorer-dc-table { overflow-x: auto; margin-top: 6px; }
+.explorer-dc-top-scroll { overflow-x: auto; height: 16px; }
+.explorer-dc-top-scroll-inner { height: 1px; }
 table.explorer-dc-table {
+  width: 100%;
   min-width: 600px;
   border-collapse: collapse;
   font-size: 12px;
 }
 .explorer-dc-table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   background: var(--bg);
   padding: 6px 10px;
   text-align: left;
@@ -941,10 +941,13 @@ table.explorer-dc-table {
   text-overflow: ellipsis;
   max-width: 220px;
 }
+.explorer-dc-table td.dc-wide-cell {
+  max-width: none;
+  overflow: visible;
+}
 .explorer-dc-table th:nth-child(3),
 .explorer-dc-table td:nth-child(3) {
-  min-width: 260px;
-  max-width: 440px;
+  min-width: 120px;
 }
 .dc-seq-cell {
   color: var(--text-muted);
@@ -959,6 +962,11 @@ table.explorer-dc-table {
 }
 .dc-row:hover { background: #eff6ff; }
 .dc-row.active { background: #dbeafe; }
+.dc-setpass-toggle { cursor: pointer; user-select: none; font-size: 10px; width: 20px; text-align: center; }
+.dc-call-cell { font-family: monospace; font-size: 11px; }
+.dc-setpass-row { background: #f8fafc; }
+.dc-setpass-row td { padding: 3px 10px; font-size: 11px; }
+.dc-setpass-call { font-family: monospace; font-size: 11px; color: #475569; }
 
 /* ── Explorer: metric key/value table ─────────────────────────── */
 .metric-table {

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 import logger as _logger_module
 from data.db import WorkspaceDB
 from data.ingest import ingest_snapshot
-from data.query import get_draw_calls, get_dc_detail
+from data.query import get_draw_calls, get_dc_detail, get_setpass
 from data import model_registry as _model_registry
 from data import questions as _q
 from data import dashboards as _dash
@@ -214,6 +214,18 @@ def make_router(db: WorkspaceDB) -> APIRouter:
                 "dc_detail failed", exc=exc,
                 context={"snapshot_id": snapshot_id, "api_id": api_id},
             )
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+    @router.get("/setpass/{api_id}", summary="Get setpass calls for a draw call",
+                operation_id="get_setpass")
+    def setpass_endpoint(
+        api_id: int,
+        snapshot_id: int = Query(..., description="Snapshot ID"),
+    ):
+        try:
+            data = get_setpass(db, snapshot_id, api_id)
+            return {"ok": True, "data": data}
+        except Exception as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
     @router.post("/refresh_labels")
