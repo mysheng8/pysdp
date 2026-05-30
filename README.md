@@ -214,71 +214,6 @@ You can pin a specific snapshot as the query context.
 
 ---
 
-## Directory Structure
-
-```
-pysdp/
-├── webui/
-│   ├── server.py              # FastAPI entry point + uvicorn
-│   ├── routes/
-│   │   ├── proxy.py           # /api/sdpcli/*      → SDPCLI Server passthrough (frontend SPA only)
-│   │   ├── snapshot_router.py # /api/snapshot/*    → Device/app discovery + snapshot workflow
-│   │   ├── jobs_router.py     # /api/jobs/*        → Extraction/analysis step triggers (C# + Python)
-│   │   ├── files.py           # /api/files/*       → File browsing and serving (read-only)
-│   │   ├── data.py            # /api/data/*        → DuckDB query endpoints (MCP-exposed)
-│   │   ├── chat.py            # /api/chat/*        → AI assistant (LLM chat with GPU data context)
-│   │   └── logs.py            # /api/logs/*        → WebUI log streaming
-│   ├── events.py              # SSE event bus (publish/subscribe + /api/events endpoint)
-│   ├── jobs.py                # Server-side Pipeline Job (background threads + state management)
-│   ├── logger.py              # WebUI logging module
-│   └── static/
-│       ├── index.html         # Single-page HTML
-│       ├── app.js             # Frontend logic (vanilla JS, no build step)
-│       └── style.css
-├── analysis/
-│   ├── label_service.py       # DrawCall rule-based classification → label.json + DB
-│   ├── status_service.py      # Percentile statistics → status.json + DB
-│   ├── topdc_service.py       # Top-DC bottleneck attribution → topdc.json
-│   ├── dashboard_service.py   # Mermaid charts → dashboard.md
-│   ├── report_service.py      # LLM analysis report → snapshot_N_report.md
-│   ├── mesh_stats_service.py  # OBJ parsing → meshes.json
-│   ├── texture_stats_service.py # Texture dimensions → textures.json
-│   ├── gles_decompile_service.py # IR3 disasm → GLSL via LLM (batch + single-file recompile)
-│   ├── vlm_screenshot_service.py # VLM scene description → scene_description.md
-│   ├── llm_wrapper.py         # LLM HTTP client
-│   └── models/
-│       ├── base.py
-│       ├── category_breakdown.py
-│       ├── label_quality.py
-│       └── top_bottleneck_dcs.py
-├── data/
-│   ├── db.py                  # WorkspaceDB (DuckDB connection + Schema DDL)
-│   ├── ingest.py              # snapshot_dir → DuckDB (idempotent)
-│   ├── query.py               # Typed Read API
-│   ├── model_registry.py      # Analysis model registry
-│   ├── questions.py           # Questions CRUD
-│   └── dashboards.py          # Dashboards CRUD
-├── chat/
-│   ├── __init__.py            # Chat module init
-│   ├── llm_client.py          # LLM client for chat
-│   ├── prompts.py             # System prompt builder
-│   ├── tools.py               # Tool definitions for AI assistant
-│   ├── skills.py              # Skill registry
-│   ├── sandbox.py             # Code execution sandbox
-│   └── skills/                # Built-in analysis skills (breakdown, bottlenecks, compare, etc.)
-├── pysdp/
-│   ├── client.py              # SdpClient (synchronous blocking API)
-│   ├── _jobs.py               # JobPoller
-│   ├── _models.py             # JobStatus / DeviceInfo data classes
-│   └── exceptions.py          # Exception hierarchy
-├── examples/
-│   ├── snapshot.py
-│   └── batch_analysis.py
-└── pyproject.toml
-```
-
----
-
 ## WebUI Features
 
 ### Home Tab
@@ -308,23 +243,6 @@ The page subscribes to data changes via `EventSource('/api/events')`:
 - `report_done` — Refresh Questions after analysis report generation
 
 ---
-
-## API Route Overview
-
-Full documentation at Swagger: **http://localhost:8000/api/docs**
-
-Routes are grouped by purpose:
-
-| Prefix | Tag | Purpose |
-|---|---|---|
-| `/api/sdpcli/*` | `frontend` | Frontend SPA passthrough, not documented |
-| `/api/snapshot/*` | `snapshot` | Device discovery, snapshot workflow (typed + docs) |
-| `/api/jobs/*` | `jobs` | Trigger C# extraction + Python analysis steps |
-| `/api/files/*` | `files` | Read-only file serving |
-| `/api/data/*` | `data` | DuckDB data queries (MCP-exposed) |
-| `/api/chat/*` | `chat` | AI assistant (LLM chat with GPU profiling context) |
-| `/api/events` | — | SSE real-time push (data changes → browser auto-refresh) |
-
 
 ---
 
