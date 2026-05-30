@@ -1,4 +1,4 @@
-# pySdp
+# pysdp
 
 ## Snapdragon Profiler 是什么？
 
@@ -6,15 +6,15 @@
 
 输出格式为 `.sdp` 文件（ZIP 包含截帧元数据 + 二进制资源）。
 
-## pySdp 是什么？
+## pysdp 是什么？
 
-pySdp 是基于 Snapdragon Profiler 截帧数据的**自动化分析平台**。它解决三个核心问题：
+pysdp 是基于 Snapdragon Profiler 截帧数据的**自动化分析平台**。它解决三个核心问题：
 
 - **官方工具只能查看，不能分析** — Snapdragon Profiler 展示原始数据，但不告诉你瓶颈在哪里、哪些 DC 有问题
 - **手动分析效率极低** — 一帧可能有数百到数千个 Draw Call，人工逐个检查不现实
 - **需要深厚的 GPU 架构知识** — 理解 Adreno 的 metrics 含义需要专业背景
 
-pySdp 通过规则引擎 + LLM 自动完成：Draw Call 分类（UI / 场景 / 阴影 / 后处理等）、性能瓶颈归因（shader bound / bandwidth bound / geometry bound）、Top-N 问题 DC 识别、AI 优化建议报告生成。
+pysdp 通过规则引擎 + LLM 自动完成：Draw Call 分类（UI / 场景 / 阴影 / 后处理等）、性能瓶颈归因（shader bound / bandwidth bound / geometry bound）、Top-N 问题 DC 识别、AI 优化建议报告生成。
 
 整个流程：**截帧 → C# 提取 → Python 分析 → WebUI 可视化 + AI Chat 交互式查询**。
 
@@ -35,7 +35,7 @@ Browser (localhost:8000)
         ├── /api/events      ──►  SSE 实时推送（数据变更通知）
         └── /api/logs/*      ──►  日志流
 
-pySdp/
+pysdp/
   webui/        FastAPI 应用（后端 + 静态资源 + SSE 实时推送）
   analysis/     Python 分析服务（分类、统计、topdc 等）
   data/         DuckDB 数据层（ingest、query、models、questions）
@@ -92,11 +92,11 @@ git clone https://github.com/mysheng8/pysdp && cd pysdp
 
 ### SDPCLI 依赖
 
-pySdp 需要 SDPCLI 来完成截帧和离线分析（C# 提取步骤）。`install.ps1` 会自动下载；如果缺失，`webui.ps1` 将无法启动。
+pysdp 需要 SDPCLI 来完成截帧和离线分析（C# 提取步骤）。`install.ps1` 会自动下载；如果缺失，`webui.ps1` 将无法启动。
 
 ### Project Directory
 
-`ProjectDir` 是 pySdp 的核心工作目录，所有数据都存放在这里：
+`ProjectDir` 是 pysdp 的核心工作目录，所有数据都存放在这里：
 
 ```
 ProjectDir/
@@ -146,9 +146,9 @@ ProjectDir/
 
 ### 关于 .sdp 文件
 
-必须使用 pySdp 自带的截帧流程（通过 SDPCLI）来截帧，才能进行后续 analysis。pySdp 截帧生成的 `.sdp` 文件与官方 Snapdragon Profiler 格式兼容，也可以用官方工具打开查看。
+必须使用 pysdp 自带的截帧流程（通过 SDPCLI）来截帧，才能进行后续 analysis。pysdp 截帧生成的 `.sdp` 文件与官方 Snapdragon Profiler 格式兼容，也可以用官方工具打开查看。
 
-如果已有通过 pySdp 截帧的 `.sdp` 文件（如从同事处获得）：
+如果已有通过 pysdp 截帧的 `.sdp` 文件（如从同事处获得）：
 
 1. 将 `.sdp` 文件放到 `ProjectDir/sdp/` 目录下
 2. 启动 WebUI → 首页会自动扫描并显示该文件
@@ -240,7 +240,7 @@ A: 检查网络连接。如果在公司代理后面，运行前设置 `HTTP_PROX
 A: 端口 8000 或 5000 被其他进程占用。手动终止（`netstat -ano | findstr :8000`）或使用其他端口：`.\webui.ps1 -Port 8080 -SdpcliPort 5001`。
 
 **Q: Python 版本错误或缺少模块**  
-A: pySdp 需要 Python 3.10+。运行 `python --version` 确认版本。如果有多个 Python，确保正确版本在 PATH 最前面。删除 `.venv/` 后重新运行 `.\install.ps1`。
+A: pysdp 需要 Python 3.10+。运行 `python --version` 确认版本。如果有多个 Python，确保正确版本在 PATH 最前面。删除 `.venv/` 后重新运行 `.\install.ps1`。
 
 **Q: `.env` 修改不生效**  
 A: `webui.ps1` 每次启动时读取 `.env`，修改后必须重启服务。确保文件名是 `.env`（不是 `.env.txt`），且在项目根目录。
@@ -272,4 +272,4 @@ A: GLSL 由 LLM 反编译生成（`gles_decompile` 步骤）。如果 `.env` 中
 A: Label 步骤需要可用的 LLM 端点。检查 `.env` 中 `PYSDP_LLM_API_ENDPOINT` 和 `PYSDP_LLM_API_KEY` 的配置。查看 Logs 了解 401/403/超时错误。
 
 **Q: 能用官方 Snapdragon Profiler 截帧的 .sdp 文件吗？**  
-A: 不能。只有通过 pySdp 的 SDPCLI 截帧的 `.sdp` 文件才能被分析，因为 C# 提取步骤依赖 SDPCLI 特有的元数据。但 pySdp 截帧的 `.sdp` 文件*可以*用官方 Snapdragon Profiler 打开查看。
+A: 不能。只有通过 pysdp 的 SDPCLI 截帧的 `.sdp` 文件才能被分析，因为 C# 提取步骤依赖 SDPCLI 特有的元数据。但 pysdp 截帧的 `.sdp` 文件*可以*用官方 Snapdragon Profiler 打开查看。

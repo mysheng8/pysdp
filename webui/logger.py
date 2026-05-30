@@ -1,5 +1,5 @@
 """
-logger.py — AppLogger singleton for pySdp WebUI.
+logger.py — AppLogger singleton for pysdp WebUI.
 
 Features:
   - In-memory ring buffer (last MAX_MEMORY records) — fast API queries

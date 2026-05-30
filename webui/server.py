@@ -1,5 +1,5 @@
 """
-server.py — pySdp WebUI entry point.
+server.py — pysdp WebUI entry point.
 
 Starts a FastAPI + uvicorn server on localhost:8000.
 Serves static files at /static/ and proxies SDPCLI API calls.
@@ -16,7 +16,7 @@ from pathlib import Path
 
 # ── Parse CLI args early so env vars are set before routes are imported ───────
 if __name__ == "__main__":
-    _p = argparse.ArgumentParser(description="pySdp WebUI", add_help=False)
+    _p = argparse.ArgumentParser(description="pysdp WebUI", add_help=False)
     _p.add_argument("--port",   type=int, default=8000)
     _p.add_argument("--host",   default="127.0.0.1")
     _p.add_argument("--sdpcli", default=None, metavar="URL",
@@ -28,7 +28,7 @@ if __name__ == "__main__":
 
 # Make webui/ importable when run as `python webui/server.py`
 sys.path.insert(0, str(Path(__file__).parent))
-# Make pySdp/ root importable so `import analysis` resolves to pySdp/analysis/
+# Make pysdp/ root importable so `import analysis` resolves to pysdp/analysis/
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import FastAPI, Request                  # noqa: E402
@@ -50,7 +50,7 @@ from data.db import WorkspaceDB                       # noqa: E402
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(
-    title="pySdp WebUI",
+    title="pysdp WebUI",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_tags=[
@@ -165,7 +165,7 @@ try:
     from fastapi_mcp import FastApiMCP
     _mcp = FastApiMCP(
         app,
-        name="pySdp",
+        name="pysdp",
         description=(
             "Snapdragon GPU profiling data — query draw calls, GPU metrics, labels, "
             "and performance correlations from DuckDB."
@@ -213,10 +213,10 @@ def root():
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
-    """Entry point for `pysdp` CLI command and `python -m pySdp`."""
+    """Entry point for `pysdp` CLI command and `python -m pysdp`."""
     import uvicorn
 
-    p = argparse.ArgumentParser(description="pySdp WebUI")
+    p = argparse.ArgumentParser(description="pysdp WebUI")
     p.add_argument("--port",   type=int, default=8000)
     p.add_argument("--host",   default="127.0.0.1")
     p.add_argument("--sdpcli", default=None, metavar="URL",
@@ -240,7 +240,7 @@ def main():
         "host": args.host, "port": args.port, "sdpcli": SDPCLI_BASE
     })
 
-    print(f"pySdp WebUI   -> http://{args.host}:{args.port}")
+    print(f"pysdp WebUI   -> http://{args.host}:{args.port}")
     print(f"SDPCLI Server -> {SDPCLI_BASE}")
     print(f"Log level     -> {log._min_level.upper()}" + (" (per-asset debug enabled)" if log.is_debug else ""))
     print(f"Log file      -> {Path(__file__).parent / 'logs' / 'webui.log'}")
@@ -262,7 +262,7 @@ if __name__ == "__main__":
         "host": _args.host, "port": _args.port, "sdpcli": SDPCLI_BASE
     })
 
-    print(f"pySdp WebUI   -> http://{_args.host}:{_args.port}")
+    print(f"pysdp WebUI   -> http://{_args.host}:{_args.port}")
     print(f"SDPCLI Server -> {SDPCLI_BASE}")
     print(f"Log level     -> {log._min_level.upper()}" + (" (per-asset debug enabled)" if log.is_debug else ""))
     print(f"Log file      -> {Path(__file__).parent / 'logs' / 'webui.log'}")

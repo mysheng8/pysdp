@@ -77,7 +77,7 @@ if (-not $sdpcliExe) {
 
 # ── Start WebUI ───────────────────────────────────────────────────────────────
 Write-Host ""
-Write-Host "  pySdp WebUI   >  http://${BindHost}:$Port"
+Write-Host "  pysdp WebUI   >  http://${BindHost}:$Port"
 if ($sdpcliExe) { Write-Host "  SDPCLI Server >  http://localhost:$SdpcliPort" }
 Write-Host "  Press ESC to stop."
 Write-Host ""

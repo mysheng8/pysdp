@@ -1,9 +1,9 @@
-"""config.py — Central configuration for pySdp.
+"""config.py — Central configuration for pysdp.
 
 Resolution order (first wins):
   1. Environment variables (PYSDP_* prefix)
-  2. .env file at pySdp root (via python-dotenv)
-  3. pySdp/config.ini (committed, safe defaults)
+  2. .env file at pysdp root (via python-dotenv)
+  3. pysdp/config.ini (committed, safe defaults)
   4. ../SDPCLI/config.ini + ../SDPCLI/secrets.ini (monorepo fallback)
 """
 from __future__ import annotations
@@ -100,7 +100,7 @@ def _load() -> tuple[dict[str, str], Path]:
                     merged[k] = v
         active_path = sdpcli_config
 
-    # Layer 3: pySdp/config.ini (overrides monorepo)
+    # Layer 3: pysdp/config.ini (overrides monorepo)
     local_config = _PYSDP_ROOT / "config.ini"
     if local_config.exists():
         for k, v in _parse_ini(local_config).items():

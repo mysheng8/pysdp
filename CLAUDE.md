@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**pySdp** is a Snapdragon Profiler data analysis and visualization platform. It ingests GPU profiling capture data (Vulkan/GLES), stores it in DuckDB, runs rule-based and LLM-powered analysis pipelines, and exposes everything via a FastAPI backend + vanilla JS single-page app. An external C# binary (SDPCLI) handles device connection and raw data extraction; pySdp sits on top of that.
+**pysdp** is a Snapdragon Profiler data analysis and visualization platform. It ingests GPU profiling capture data (Vulkan/GLES), stores it in DuckDB, runs rule-based and LLM-powered analysis pipelines, and exposes everything via a FastAPI backend + vanilla JS single-page app. An external C# binary (SDPCLI) handles device connection and raw data extraction; pysdp sits on top of that.
 
 ## Commands
 

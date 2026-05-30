@@ -1,4 +1,4 @@
-"""Allow running pySdp as: python -m pySdp"""
+"""Allow running pysdp as: python -m pysdp"""
 from webui.server import main
 
 main()

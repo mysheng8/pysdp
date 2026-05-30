@@ -19,7 +19,7 @@ last_updated: "2026-05-26"
 
 ## Problem Statement
 
-pySdp 有三处独立读取并拼接 `ProjectDir` + `SdpDir`/`AnalysisDir` 的逻辑，
+pysdp 有三处独立读取并拼接 `ProjectDir` + `SdpDir`/`AnalysisDir` 的逻辑，
 但三处实现不完全一致，且存在历史遗留的重复防御机制。
 
 ## Evidence
@@ -101,7 +101,7 @@ AnalysisDir=D:/pysdp/project/analysis
 SDPCLI 把 `.sdp` 文件写到自己的工作目录。有两条补救路径：
 
 **路径 A（proxy.py capture 注入 outputDir）**
-- 在 capture 请求发出前，把 `outputDir` 注入为 pySdp 的 sdp 目录。
+- 在 capture 请求发出前，把 `outputDir` 注入为 pysdp 的 sdp 目录。
 - SDPCLI 直接写到正确位置，无需事后 copy。
 - 依赖于 SDPCLI Server 的 `outputDir` 参数被正确识别和遵守。
 
