@@ -226,3 +226,50 @@ GLES 截帧使用 Adreno IR3 反汇编。`ir3-disasm`（[Mesa freedreno](https:/
 | 0x44050001 | Adreno 830 | Snapdragon 8 Elite (variant) |
 | 0x44050A31 | Adreno 840 | — |
 | 0x44070041 | Adreno X2-85 | Snapdragon X2 Elite |
+
+---
+
+## 常见问题 (FAQ)
+
+### 安装与启动
+
+**Q: `install.ps1` 下载 SDPCLI 失败**  
+A: 检查网络连接。如果在公司代理后面，运行前设置 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量。也可以从 [sdpcli-releases](https://github.com/mysheng8/sdpcli-releases/releases) 手动下载并解压到 `%USERPROFILE%\.pysdp\sdpcli\`。
+
+**Q: `webui.ps1` 报 "port already in use"**  
+A: 端口 8000 或 5000 被其他进程占用。手动终止（`netstat -ano | findstr :8000`）或使用其他端口：`.\webui.ps1 -Port 8080 -SdpcliPort 5001`。
+
+**Q: Python 版本错误或缺少模块**  
+A: pySdp 需要 Python 3.10+。运行 `python --version` 确认版本。如果有多个 Python，确保正确版本在 PATH 最前面。删除 `.venv/` 后重新运行 `.\install.ps1`。
+
+**Q: `.env` 修改不生效**  
+A: `webui.ps1` 每次启动时读取 `.env`，修改后必须重启服务。确保文件名是 `.env`（不是 `.env.txt`），且在项目根目录。
+
+**Q: 更新后 SDPCLI 版本不匹配**  
+A: 运行 `.\install.ps1 -Force` 重新下载 `pyproject.toml` 中指定的版本。
+
+### 截帧与分析
+
+**Q: Step 1 (Connect) 检测不到设备**  
+A: 确保设备已开启 USB 调试。运行 `adb devices` 验证设备可见。如果显示 "unauthorized"，在设备屏幕上接受 USB 调试授权提示。
+
+**Q: Connect 成功但 Launch 失败**  
+A: 包名可能有误 — 点击刷新按钮重新扫描。GLES 应用需要选择 "GLES"（不是 Vulkan）。部分有反调试保护的应用可能拒绝在 Profiling 模式下启动。
+
+**Q: Capture 卡住或超时**  
+A: 应用必须正在渲染。如果应用暂停或在后台，截帧会卡住。切换到有活跃渲染的场景后再点击 Capture。
+
+**Q: Analysis 在 "ingest" 步骤失败**  
+A: 通常表示 C# 提取产生了不完整数据。查看 Logs 页签了解详情。可以重试：选中卡片 → 再次点击 Analyze。
+
+**Q: Shader 显示 "No shader extracted"**  
+A: 设备 GPU 芯片可能不被 ir3-disasm 支持（GLES），或截帧未包含 shader 数据。查看上方支持的 GPU 列表。Vulkan 截帧的 shader 通过 SPIR-V 获取，应始终可用。
+
+**Q: 只有 DISASM，GLSL 切换不可用**  
+A: GLSL 由 LLM 反编译生成（`gles_decompile` 步骤）。如果 `.env` 中未配置 LLM 密钥或反编译步骤失败，则只有原始 DISASM。查看 Logs 了解反编译错误。也可以点击单个 shader 的 "Recompile" 按钮重试。
+
+**Q: Label 全部显示 "Unknown" 或缺失**  
+A: Label 步骤需要可用的 LLM 端点。检查 `.env` 中 `PYSDP_LLM_API_ENDPOINT` 和 `PYSDP_LLM_API_KEY` 的配置。查看 Logs 了解 401/403/超时错误。
+
+**Q: 能用官方 Snapdragon Profiler 截帧的 .sdp 文件吗？**  
+A: 不能。只有通过 pySdp 的 SDPCLI 截帧的 `.sdp` 文件才能被分析，因为 C# 提取步骤依赖 SDPCLI 特有的元数据。但 pySdp 截帧的 `.sdp` 文件*可以*用官方 Snapdragon Profiler 打开查看。
