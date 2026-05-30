@@ -20,6 +20,37 @@ End-to-end flow: **Capture → C# extraction → Python analysis → WebUI visua
 
 ---
 
+## Requirements
+
+| Requirement | Details |
+|-------------|---------|
+| OS | Windows 10/11 (x64) |
+| Python | 3.10+ |
+| ADB | Android Debug Bridge (for device connection) |
+| USB | USB debugging enabled on target device |
+| LLM API | Any OpenAI-compatible endpoint (for labeling, decompile, chat) |
+
+> SDPCLI (the C# capture/extraction binary) is Windows-only. The Python analysis and WebUI themselves are cross-platform, but the full capture workflow requires Windows.
+
+## Supported Devices
+
+pysdp works with any device running a **Qualcomm Snapdragon SoC with Adreno GPU**. This includes:
+
+**Phones:**
+- Snapdragon 8 Elite / 8 Gen 3 / 8 Gen 2 / 8 Gen 1
+- Snapdragon 7 series (7s Gen 2, 7+ Gen 2, etc.)
+- Snapdragon 888 / 865 / 855 and older (with supported Adreno GPU)
+
+**PC / Always-on-PC:**
+- Snapdragon X Elite / X Plus (Adreno X1-85 / X1-45)
+- Snapdragon X2 Elite (Adreno X2-85)
+
+**Supported APIs:** Vulkan and GLES (OpenGL ES)
+
+> For the full list of supported Adreno GPUs (with chip IDs for ir3-disasm shader decompilation), see [GLES Shader Decompile](#gles-shader-decompile-ir3-disasm) below.
+
+---
+
 ## Architecture Overview
 
 ```
@@ -401,7 +432,52 @@ Set `PyLogLevel=debug|info|warning|error` in `config.ini` or `PYSDP_LOG_LEVEL` e
 - **Render Targets**: Stored in `dc_render_targets` table; GLES captures correctly distinguish Color / Depth / Stencil attachment types
 - **Screenshot**: Prefers analysis directory cache, falls back to extracting from `.sdp` ZIP at `snapshot_N/*.bmp`
 - **GLES Shader format**: Vulkan outputs HLSL ([spirv-cross](https://vulkan.lunarg.com/sdk/home)), GLES outputs GLSL (IR3→LLM decompile) or raw IR3 disasm ([Mesa freedreno ir3-disasm](https://gitlab.freedesktop.org/mesa/mesa)); `label_service` handles both transparently
-- **MCP**: Exposes 19 read-only query endpoints via `fastapi-mcp`; mount point `/mcp`
+---
+
+## MCP Server
+
+pysdp exposes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server via [`fastapi-mcp`](https://github.com/tadata-org/fastapi-mcp), allowing AI assistants (Claude, Cursor, etc.) to directly query GPU profiling data.
+
+**Endpoint:** `http://localhost:8000/mcp`
+
+**Available tools (19 read-only operations):**
+
+| Tool | Description |
+|------|-------------|
+| `get_snapshots` | List all captured snapshots |
+| `get_draw_calls` | Query draw calls with filtering/sorting |
+| `get_dc_detail` | Full detail for a single draw call (params, metrics, shaders, textures) |
+| `get_available_metrics` | List available GPU counter columns |
+| `get_label_correlations` | Metric correlations grouped by label category |
+| `get_clock_correlation` | Clock cycle correlation analysis |
+| `get_label_agg_multi` | Aggregate metrics across multiple labels |
+| `get_label_agg` | Aggregate metrics for a single label |
+| `get_label_agg_all` | Aggregate metrics for all labels |
+| `get_label_metrics` | Per-DC metrics within a label |
+| `get_models` | List registered analysis models |
+| `get_questions` | List saved questions |
+| `get_question` | Execute a saved question query |
+| `get_dashboards` | List dashboards |
+| `get_dashboard` | Get dashboard detail |
+| `get_file_read` | Read text file content |
+| `get_file_raw` | Serve raw file (binary) |
+| `get_file_image` | Serve image file with optional resize |
+
+**Usage with Claude Desktop / Claude Code:**
+
+Add to your MCP config (`claude_desktop_config.json` or `.mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "pysdp": {
+      "url": "http://localhost:8000/mcp"
+    }
+  }
+}
+```
+
+Then you can ask Claude things like "What are the top 5 most expensive draw calls?" or "Show me bandwidth usage by category" — Claude will call the MCP tools to query your profiling data directly.
 
 ---
 

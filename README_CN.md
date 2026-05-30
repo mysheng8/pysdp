@@ -20,6 +20,37 @@ pysdp 通过规则引擎 + LLM 自动完成：Draw Call 分类（UI / 场景 / �
 
 ---
 
+## 系统要求
+
+| 要求 | 说明 |
+|------|------|
+| 操作系统 | Windows 10/11 (x64) |
+| Python | 3.10+ |
+| ADB | Android Debug Bridge（用于设备连接）|
+| USB | 目标设备需开启 USB 调试 |
+| LLM API | 任意 OpenAI 兼容端点（用于分类、反编译、对话）|
+
+> SDPCLI（C# 截帧/提取工具）仅支持 Windows。Python 分析和 WebUI 本身跨平台，但完整截帧流程需要 Windows。
+
+## 支持的设备
+
+pysdp 适用于搭载 **高通骁龙 SoC + Adreno GPU** 的任何设备，包括：
+
+**手机：**
+- 骁龙 8 Elite / 8 Gen 3 / 8 Gen 2 / 8 Gen 1
+- 骁龙 7 系列（7s Gen 2、7+ Gen 2 等）
+- 骁龙 888 / 865 / 855 及更早（需 Adreno GPU 在支持列表中）
+
+**PC / 始终在线 PC：**
+- 骁龙 X Elite / X Plus（Adreno X1-85 / X1-45）
+- 骁龙 X2 Elite（Adreno X2-85）
+
+**支持的图形 API：** Vulkan 和 GLES（OpenGL ES）
+
+> 完整 Adreno GPU 支持列表（含 ir3-disasm shader 反编译的芯片 ID），见下方 [GLES Shader 反编译](#gles-shader-反编译-ir3-disasm)。
+
+---
+
 ## 架构概览
 
 ```
@@ -196,6 +227,53 @@ ProjectDir/
 ### 日志级别
 
 在 `config.ini` 中设置 `PyLogLevel=debug|info|warning|error`，或使用环境变量 `PYSDP_LOG_LEVEL`。
+
+---
+
+## MCP Server
+
+pysdp 通过 [`fastapi-mcp`](https://github.com/tadata-org/fastapi-mcp) 暴露 [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) 服务，允许 AI 助手（Claude、Cursor 等）直接查询 GPU 性能数据。
+
+**端点：** `http://localhost:8000/mcp`
+
+**可用工具（19 个只读操作）：**
+
+| 工具 | 说明 |
+|------|------|
+| `get_snapshots` | 列出所有截帧 |
+| `get_draw_calls` | 查询 Draw Call（支持过滤/排序）|
+| `get_dc_detail` | 单个 DC 完整详情（参数、指标、shader、纹理）|
+| `get_available_metrics` | 列出可用 GPU 计数器列 |
+| `get_label_correlations` | 按分类的指标相关性分析 |
+| `get_clock_correlation` | Clock 周期相关性分析 |
+| `get_label_agg_multi` | 多标签聚合指标 |
+| `get_label_agg` | 单标签聚合指标 |
+| `get_label_agg_all` | 所有标签聚合指标 |
+| `get_label_metrics` | 标签内逐 DC 指标 |
+| `get_models` | 列出已注册的分析模型 |
+| `get_questions` | 列出已保存的查询 |
+| `get_question` | 执行已保存的查询 |
+| `get_dashboards` | 列出仪表盘 |
+| `get_dashboard` | 获取仪表盘详情 |
+| `get_file_read` | 读取文本文件内容 |
+| `get_file_raw` | 获取原始文件（二进制）|
+| `get_file_image` | 获取图片文件（可选缩放）|
+
+**在 Claude Desktop / Claude Code 中使用：**
+
+在 MCP 配置中添加（`claude_desktop_config.json` 或 `.mcp.json`）：
+
+```json
+{
+  "mcpServers": {
+    "pysdp": {
+      "url": "http://localhost:8000/mcp"
+    }
+  }
+}
+```
+
+然后可以直接问 Claude："这帧最耗时的 5 个 DC 是什么？"、"各类别带宽占比多少？"—— Claude 会通过 MCP 工具直接查询你的性能数据。
 
 ---
 
