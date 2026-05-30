@@ -72,13 +72,15 @@
               <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">Version</label>
               <div id="set-popover-version-list" class="popover-list"></div>
             </div>
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-              <label style="font-size:12px;color:var(--text-muted)">Orientation</label>
-              <select id="set-popover-orientation" style="font-size:12px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text)">
-                <option value="landscape">Landscape</option>
-                <option value="portrait">Portrait</option>
-              </select>
-              <button class="btn-secondary btn-sm" onclick="doGenThumbnail()" style="margin-left:auto">Gen Thumbnail</button>
+            <div style="margin-bottom:10px">
+              <button class="btn-secondary btn-sm" onclick="doGenThumbnail()" style="width:100%;margin-bottom:6px">Gen Thumbnail</button>
+              <div style="display:flex;gap:8px;align-items:center">
+                <label style="font-size:12px;color:var(--text-muted)">Orientation</label>
+                <select id="set-popover-orientation" style="font-size:12px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:var(--card);color:var(--text)">
+                  <option value="landscape">Landscape</option>
+                  <option value="portrait">Portrait</option>
+                </select>
+              </div>
             </div>
             <div style="display:flex;gap:8px;justify-content:space-between;align-items:center">
               <button class="btn-secondary btn-sm" style="color:#dc2626" onclick="doRemoveSelected()">Remove</button>

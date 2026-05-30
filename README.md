@@ -1,6 +1,22 @@
 # pySdp
 
-Snapdragon Profiler data analysis platform — Python layer with WebUI, data layer, analysis services, and a standalone Python client library. Supports visualization of both **Vulkan** and **OpenGL ES** GPU profiling results.
+## What is Snapdragon Profiler?
+
+[Snapdragon Profiler](https://developer.qualcomm.com/software/snapdragon-profiler) is Qualcomm's official GPU profiling tool for devices with Adreno GPUs (phones, XR headsets, PCs). It performs frame-level capture and collects per-Draw-Call parameters, GPU hardware counters (clocks, bandwidth, shader stall, etc.), shader source code, textures, and mesh resources.
+
+Output format: `.sdp` file (a ZIP containing capture metadata + binary assets).
+
+## What is pySdp?
+
+pySdp is an **automated analysis platform** built on top of Snapdragon Profiler capture data. It solves three core problems:
+
+- **The official tool can only view, not analyze** — Snapdragon Profiler displays raw data but doesn't tell you where the bottlenecks are or which DCs are problematic
+- **Manual analysis is extremely inefficient** — a single frame may have hundreds to thousands of Draw Calls, making manual inspection impractical
+- **Requires deep GPU architecture expertise** — understanding Adreno metrics requires specialized knowledge
+
+pySdp automates via rule engine + LLM: Draw Call classification (UI / scene / shadow / post-processing, etc.), performance bottleneck attribution (shader bound / bandwidth bound / geometry bound), Top-N problematic DC identification, and AI-generated optimization reports.
+
+End-to-end flow: **Capture → C# extraction → Python analysis → WebUI visualization + AI Chat interactive queries**.
 
 ---
 
@@ -42,19 +58,19 @@ git clone https://github.com/mysheng8/pysdp && cd pysdp
 #    PYSDP_PROJECT_DIR=D:/your/project           # SDP files and analysis output
 #
 #    # --- LLM (DrawCall labeling / IR3→GLSL decompile / report generation) ---
-#    # 高频批量调用（每帧数百次），用最便宜的轻量模型
+#    # High-frequency batch calls (hundreds per frame), use cheapest lightweight model
 #    PYSDP_LLM_API_ENDPOINT=https://...
 #    PYSDP_LLM_API_KEY=sk-...
 #    PYSDP_LLM_MODEL=vertex_ai/gemini-2.5-flash-lite
 #
 #    # --- VLM (screenshot scene description) ---
-#    # 需要视觉理解能力，用支持图片输入的多模态模型
+#    # Requires vision capability, use a multimodal model that accepts image input
 #    PYSDP_VLM_API_ENDPOINT=https://...
 #    PYSDP_VLM_API_KEY=sk-...
 #    PYSDP_VLM_MODEL=...
 #
 #    # --- Chat AI (WebUI sidebar assistant) ---
-#    # 交互式对话，需要较强推理能力，用中等或高端模型
+#    # Interactive conversation, needs stronger reasoning, use mid/high-tier model
 #    PYSDP_CHAT_API_ENDPOINT=https://...
 #    PYSDP_CHAT_API_KEY=sk-...
 #    PYSDP_CHAT_MODEL=vertex_ai/gemini-2.5-flash
@@ -78,20 +94,92 @@ Open **http://localhost:8000** in your browser.
 
 pySdp requires SDPCLI for both live capture and offline analysis (C# extraction step). `install.ps1` downloads it automatically; if missing, `webui.ps1` will fail to start.
 
-### Custom ports / project directory
+### Project Directory
 
-```powershell
-.\webui.ps1 -ProjectDir D:\your\project
-.\webui.ps1 -Port 8080 -SdpcliPort 5001 -ProjectDir D:\your\project
+`ProjectDir` is pySdp's core working directory — all data lives here:
+
+```
+ProjectDir/
+├── sdp/              # .sdp files output by SDPCLI capture
+└── analysis/         # Python analysis pipeline output (one subdirectory per capture)
+    └── <run_name>/
+        └── snapshot_N/
+            ├── dc.json, metrics.json, label.json, shaders.json, ...
+            ├── shaders/          # disasm + glsl files
+            ├── textures/         # texture files
+            └── meshes/           # OBJ mesh files
 ```
 
-`-ProjectDir` 同时传给 SDPCLI（`-projectdir` 参数）和 WebUI（`PYSDP_PROJECT_DIR` 环境变量），无需手动配置。
+Configuration:
+
+- **Recommended**: set `PYSDP_PROJECT_DIR=D:/your/project` in `.env`
+- **Command-line override**: `.\webui.ps1 -ProjectDir D:\other\project` (takes precedence over .env)
+
+`webui.ps1` reads ProjectDir on startup and passes it to SDPCLI via the `-projectdir` argument automatically.
+
+### Custom ports
+
+```powershell
+.\webui.ps1 -Port 8080 -SdpcliPort 5001
+```
 
 ### SDPCLI binary location
 
 `install.ps1` downloads SDPCLI to `%USERPROFILE%\.pysdp\sdpcli\SDPCLI.exe`.  
 To force re-download (e.g. after version bump in `pyproject.toml`): `.\install.ps1 -Force`  
 To use a custom binary, set `PYSDP_SDPCLI_PATH=C:\path\to\SDPCLI.exe` in `.env` before running `webui.ps1`.
+
+---
+
+## Quick Start Guide
+
+### Capture + Analysis (WebUI workflow)
+
+1. **Click the "+" card on the Home page** → opens the New Capture modal
+2. **Step 0 — Select Project & Version** (for data organization, can be changed later)
+3. **Step 1 — Connect** → select device → click Connect (wait for connection)
+4. **Step 2 — Launch** → select app package → choose Vulkan/GLES → click Launch
+5. **Step 3 — Capture** → navigate the app to the target scene → click Capture (wait for completion)
+6. **Click "Analyze →"** → automatically runs C# extraction + Python analysis pipeline
+
+After analysis completes, a thumbnail appears on the Home card. Double-click to enter the Explorer.
+
+### About .sdp files
+
+Capture must be performed using pySdp's built-in workflow (via SDPCLI) in order to run analysis. The resulting `.sdp` files are compatible with the official Snapdragon Profiler and can be opened there as well.
+
+If you already have `.sdp` files captured through pySdp (e.g. received from a colleague):
+
+1. Place the `.sdp` file in `ProjectDir/sdp/`
+2. Start WebUI → the Home page auto-scans and displays the file
+3. Select the card → click Analyze → wait for completion
+4. Double-click the card to enter Explorer
+
+### Explorer UI
+
+- **Left panel — Draw Call list**
+  - **Params tab**: DC call parameters, expand to see sub-calls (setpass)
+  - **Metrics tab**: GPU hardware counters (clocks, bandwidth, shader busy %, etc.)
+  - **Label tab**: AI classification results (category / subcategory / confidence)
+  - Category filter dropdown to filter by label
+  - Click column headers to sort
+
+- **Right panel — DC detail**
+  - Metrics heatmap (red = metric significantly above median)
+  - Shader source viewer (GLSL ↔ DISASM toggle, Recompile support)
+  - Texture list + preview
+  - Mesh 3D preview (OBJ)
+  - Render Target info
+
+### AI Chat
+
+Click the Chat button (top-right) to open the sidebar. Supports natural language queries on GPU data:
+
+- "What are the top 5 most expensive DCs in this frame?"
+- "How many clocks do UI-category DCs consume?"
+- "Which DCs have the worst fragment shader stall?"
+
+You can pin a specific snapshot as the query context.
 
 ---
 

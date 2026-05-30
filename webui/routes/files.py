@@ -609,6 +609,13 @@ def make_router(db=None) -> APIRouter:
             )
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
+    @router.head("/raw", include_in_schema=False)
+    def head_raw(path: str = Query(...)):
+        p = Path(path)
+        if not p.exists() or not p.is_file():
+            return JSONResponse({"ok": False}, status_code=404)
+        return Response(status_code=200)
+
     @router.get("/raw", operation_id="get_file_raw",
                 summary="[MCP] Serve raw file bytes",
                 description="Serve any local file as raw bytes. Use for mesh OBJ files (mesh_file path from dc_detail). "
