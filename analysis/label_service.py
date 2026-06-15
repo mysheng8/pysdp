@@ -668,7 +668,12 @@ def _persist_labels_to_db(db, snapshot_id: int, sdp_name: str, snap: Path,
         ]
         if dc_rows:
             conn.executemany(
-                "INSERT OR REPLACE INTO draw_calls VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO draw_calls "
+                "(snapshot_id, api_id, dc_id, api_name, pipeline_id, "
+                " vertex_count, index_count, instance_count, first_vertex, first_index, "
+                " vertex_offset, first_instance, draw_count, "
+                " group_count_x, group_count_y, group_count_z) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 dc_rows,
             )
 

@@ -81,7 +81,8 @@ pysdp/
 
 ```powershell
 # 1. Clone
-git clone https://github.com/mysheng8/pysdp && cd pysdp
+git clone https://github.com/mysheng8/pysdp
+cd pysdp
 
 # 2. Configure — create a .env file in the repo root before installing:
 #
@@ -109,7 +110,7 @@ git clone https://github.com/mysheng8/pysdp && cd pysdp
 #    See config.ini for all available keys and their defaults.
 
 # 3. Install: creates .venv, installs Python deps, downloads SDPCLI binary
-.\install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 # 4. Start
 .\webui.ps1

@@ -81,7 +81,8 @@ pysdp/
 
 ```powershell
 # 1. 克隆
-git clone https://github.com/mysheng8/pysdp && cd pysdp
+git clone https://github.com/mysheng8/pysdp
+cd pysdp
 
 # 2. 配置 — 在项目根目录创建 .env 文件：
 #
@@ -109,7 +110,7 @@ git clone https://github.com/mysheng8/pysdp && cd pysdp
 #    详见 config.ini 了解所有可用配置项及默认值。
 
 # 3. 安装：创建 .venv，安装 Python 依赖，下载 SDPCLI
-.\install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 # 4. 启动
 .\webui.ps1
@@ -310,6 +311,16 @@ GLES 截帧使用 Adreno IR3 反汇编。`ir3-disasm`（[Mesa freedreno](https:/
 ## 常见问题 (FAQ)
 
 ### 安装与启动
+
+**Q: `install.ps1` 报错 "not digitally signed" 或 "UnauthorizedAccess"**  
+A: 这是 PowerShell 执行策略限制（企业机常见）。用以下命令绕过：
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+或以管理员身份运行一次，永久允许本地脚本：
+```powershell
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
 
 **Q: `install.ps1` 下载 SDPCLI 失败**  
 A: 检查网络连接。如果在公司代理后面，运行前设置 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量。也可以从 [sdpcli-releases](https://github.com/mysheng8/sdpcli-releases/releases) 手动下载并解压到 `%USERPROFILE%\.pysdp\sdpcli\`。

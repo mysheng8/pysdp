@@ -6,7 +6,8 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 
 # ── Resolve system Python ─────────────────────────────────────────────────────
-$sysPython = (Get-Command python -ErrorAction SilentlyContinue)?.Source
+$_pyCmd = Get-Command python -ErrorAction SilentlyContinue
+$sysPython = if ($_pyCmd) { $_pyCmd.Source } else { $null }
 if (-not $sysPython) { Write-Error "Python not found. Install Python 3.10+ first."; exit 1 }
 Write-Host "Using Python: $sysPython"
 

@@ -1402,25 +1402,31 @@ table.explorer-dc-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
-  white-space: nowrap;
+  table-layout: fixed;
 }
 .questions-table th {
   background: var(--bg);
-  padding: 7px 12px;
+  padding: 7px 6px;
   text-align: right;
   font-weight: 600;
   color: var(--text-muted);
   border-bottom: 2px solid var(--border);
   position: sticky;
   top: 0;
+  white-space: normal;
+  word-break: break-word;
+  overflow: hidden;
 }
 .questions-table th:first-child { text-align: left; }
 .questions-table td {
-  padding: 6px 12px;
+  padding: 6px 6px;
   border-bottom: 1px solid var(--border);
   text-align: right;
   font-family: ui-monospace, 'Cascadia Code', monospace;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .questions-table tr:hover td { background: #f0f6ff; }
 .questions-table tr.q-row-selected td { background: #dbeafe; }

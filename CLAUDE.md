@@ -23,7 +23,7 @@ pysdp --port 8000 --sdpcli http://localhost:5000
 # Monorepo dev shortcut (kills stale processes, reinstalls, starts server)
 ./webui.ps1
 
-# Run tests (no test runner config; uses pytest directly)
+# Run tests (no test files exist yet; pytest is the intended runner)
 pytest
 
 # API docs (Swagger UI, available while server is running)
@@ -52,13 +52,18 @@ Browser (SPA: webui/static/)
 | Module | Role |
 |---|---|
 | `webui/server.py` | FastAPI app entry point — mounts routes, initializes DuckDB workspace, mounts MCP server |
-| `webui/routes/` | 6 routers: proxy (→SDPCLI), snapshot, jobs, files, data, logs, chat |
-| `analysis/` | 9 services: `label_service`, `status_service`, `topdc_service`, `gles_decompile_service`, `vlm_screenshot_service`, mesh/texture stats, LLM analysis |
+| `webui/routes/` | 7 routers: proxy (→SDPCLI), snapshot, jobs, files, data, logs, chat |
+| `webui/jobs.py` | Background pipeline job manager — runs ingest→label→status→topdc→analysis_md in a thread |
+| `webui/events.py` | SSE bus (`publish()`) — all real-time browser updates flow through here |
+| `analysis/` | Services: `label_service`, `status_service`, `topdc_service`, `gles_decompile_service`, `vlm_screenshot_service`, `analysis_md_service`, `dashboard_service`, `report_service`, mesh/texture stats |
+| `analysis/llm_wrapper.py` | OpenAI-compatible LLM client with SHA-256 ring-pool response cache |
+| `analysis/models/` | 4 typed result models used by the chat skills: `category_breakdown`, `label_quality`, `top_bottleneck_dcs`, `base` |
 | `data/db.py` | `WorkspaceDB` singleton — DuckDB schema DDL (11+ tables) |
 | `data/ingest.py` | Parses C# JSON snapshot outputs → DuckDB (idempotent) |
 | `data/query.py` | Typed read API: `get_draw_calls`, `get_metrics`, `get_correlations`, etc. |
-| `pysdp/client.py` | `SdpClient` — synchronous blocking API for scripts/CI use |
-| `chat/` | AI assistant: system prompt builder, LLM client, skill registry, tool definitions |
+| `pysdp/client.py` | `SdpClient` — synchronous blocking API for scripts/CI use; `pysdp/exceptions.py` defines the error hierarchy |
+| `chat/` | AI assistant: system prompt builder, async streaming LLM client, sandboxed Python exec, tool definitions |
+| `chat/skills/` | 5 deterministic skills invoked by the AI: `bottlenecks`, `breakdown`, `compare`, `correlate`, `mesh_ratio` |
 
 ### Analysis pipeline
 
