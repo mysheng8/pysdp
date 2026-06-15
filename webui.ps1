@@ -58,9 +58,8 @@ if (-not $sdpcliExe) {
     $sdpcliDir = Split-Path $sdpcliExe
     $projectArg = if ($ProjectDir) { " -projectdir `"$ProjectDir`"" } else { "" }
     Write-Host "`n Starting SDPCLI Server on port $SdpcliPort..."
-    $sdpcliProc = Start-Process "cmd" `
-        -ArgumentList "/k cd /d `"$sdpcliDir`" && `"$sdpcliExe`" server --port $SdpcliPort$projectArg" `
-        -WindowStyle Normal -PassThru
+    $sdpcliArgs = "/k cd /d `"$sdpcliDir`" && `"$sdpcliExe`" server --port $SdpcliPort$projectArg"
+    $sdpcliProc = Start-Process "cmd" -ArgumentList $sdpcliArgs -WindowStyle Normal -PassThru
 
     # Wait for SDPCLI to be ready
     Write-Host " Waiting for SDPCLI Server..."
@@ -87,9 +86,8 @@ Start-Process "http://${BindHost}:$Port"
 
 $sdpcliArg = if ($sdpcliExe) { " --sdpcli http://localhost:$SdpcliPort" } else { "" }
 $pyArgs = "webui\server.py --host $BindHost --port $Port$sdpcliArg"
-$proc = Start-Process "cmd" `
-    -ArgumentList "/k cd /d `"$root`" && `"$python`" $pyArgs" `
-    -WindowStyle Normal -PassThru
+$procArgs = "/k cd /d `"$root`" && `"$python`" $pyArgs"
+$proc = Start-Process "cmd" -ArgumentList $procArgs -WindowStyle Normal -PassThru
 
 # ── ESC to exit ───────────────────────────────────────────────────────────────
 while (-not $proc.HasExited) {
