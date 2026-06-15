@@ -110,13 +110,13 @@ cd pysdp
 #    详见 config.ini 了解所有可用配置项及默认值。
 
 # 3. 安装：创建 .venv，安装 Python 依赖，下载 SDPCLI
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+.\install.bat
 
 # 4. 启动
-.\webui.ps1
+.\webui.bat
 ```
 
-`webui.ps1` 自动完成：终止占用端口的进程 → 加载 `.env` → 启动 SDPCLI Server（带 `-projectdir`）→ 启动 WebUI → 打开浏览器。按 **ESC** 停止所有进程。
+`webui.bat`（封装 `webui.ps1`）自动完成：终止占用端口的进程 → 加载 `.env` → 启动 SDPCLI Server（带 `-projectdir`）→ 启动 WebUI → 打开浏览器。按 **ESC** 停止所有进程。
 
 打开 **http://localhost:8000**。
 
@@ -124,7 +124,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 ### SDPCLI 依赖
 
-pysdp 需要 SDPCLI 来完成截帧和离线分析（C# 提取步骤）。`install.ps1` 会自动下载；如果缺失，`webui.ps1` 将无法启动。
+pysdp 需要 SDPCLI 来完成截帧和离线分析（C# 提取步骤）。`install.bat` 会自动下载；如果缺失，`webui.bat` 将无法启动。
 
 ### Project Directory
 
@@ -145,20 +145,20 @@ ProjectDir/
 设置方式：
 
 - **推荐**：在 `.env` 中配置 `PYSDP_PROJECT_DIR=D:/your/project`
-- **命令行覆盖**：`.\webui.ps1 -ProjectDir D:\other\project`（优先级高于 .env）
+- **命令行覆盖**：`.\webui.bat -ProjectDir D:\other\project`（优先级高于 .env）
 
-`webui.ps1` 启动时会读取 ProjectDir 并自动传给 SDPCLI（`-projectdir` 参数），无需分别配置。
+`webui.bat` 启动时会读取 ProjectDir 并自动传给 SDPCLI（`-projectdir` 参数），无需分别配置。
 
 ### 自定义端口
 
-```powershell
-.\webui.ps1 -Port 8080 -SdpcliPort 5001
+```bat
+.\webui.bat -Port 8080 -SdpcliPort 5001
 ```
 
 ### SDPCLI 路径
 
-`install.ps1` 下载 SDPCLI 到 `%USERPROFILE%\.pysdp\sdpcli\SDPCLI.exe`。  
-强制重新下载（如 `pyproject.toml` 中版本号更新后）：`.\install.ps1 -Force`  
+`install.bat` 下载 SDPCLI 到 `%USERPROFILE%\.pysdp\sdpcli\SDPCLI.exe`。  
+强制重新下载（如 `pyproject.toml` 中版本号更新后）：`.\install.bat -Force`  
 使用自定义路径：在 `.env` 中设置 `PYSDP_SDPCLI_PATH=C:\path\to\SDPCLI.exe`。
 
 ---
@@ -312,30 +312,20 @@ GLES 截帧使用 Adreno IR3 反汇编。`ir3-disasm`（[Mesa freedreno](https:/
 
 ### 安装与启动
 
-**Q: `install.ps1` 报错 "not digitally signed" 或 "UnauthorizedAccess"**  
-A: 这是 PowerShell 执行策略限制（企业机常见）。用以下命令绕过：
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
-```
-或以管理员身份运行一次，永久允许本地脚本：
-```powershell
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
-```
-
-**Q: `install.ps1` 下载 SDPCLI 失败**  
+**Q: `install.bat` 下载 SDPCLI 失败**  
 A: 检查网络连接。如果在公司代理后面，运行前设置 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量。也可以从 [sdpcli-releases](https://github.com/mysheng8/sdpcli-releases/releases) 手动下载并解压到 `%USERPROFILE%\.pysdp\sdpcli\`。
 
-**Q: `webui.ps1` 报 "port already in use"**  
-A: 端口 8000 或 5000 被其他进程占用。手动终止（`netstat -ano | findstr :8000`）或使用其他端口：`.\webui.ps1 -Port 8080 -SdpcliPort 5001`。
+**Q: `webui.bat` 报 "port already in use"**  
+A: 端口 8000 或 5000 被其他进程占用。手动终止（`netstat -ano | findstr :8000`）或使用其他端口：`.\webui.bat -Port 8080 -SdpcliPort 5001`。
 
 **Q: Python 版本错误或缺少模块**  
-A: pysdp 需要 Python 3.10+。运行 `python --version` 确认版本。如果有多个 Python，确保正确版本在 PATH 最前面。删除 `.venv/` 后重新运行 `.\install.ps1`。
+A: pysdp 需要 Python 3.10+。运行 `python --version` 确认版本。如果有多个 Python，确保正确版本在 PATH 最前面。删除 `.venv/` 后重新运行 `.\install.bat`。
 
 **Q: `.env` 修改不生效**  
-A: `webui.ps1` 每次启动时读取 `.env`，修改后必须重启服务。确保文件名是 `.env`（不是 `.env.txt`），且在项目根目录。
+A: `webui.bat` 每次启动时读取 `.env`，修改后必须重启服务。确保文件名是 `.env`（不是 `.env.txt`），且在项目根目录。
 
 **Q: 更新后 SDPCLI 版本不匹配**  
-A: 运行 `.\install.ps1 -Force` 重新下载 `pyproject.toml` 中指定的版本。
+A: 运行 `.\install.bat -Force` 重新下载 `pyproject.toml` 中指定的版本。
 
 ### 截帧与分析
 

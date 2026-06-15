@@ -110,13 +110,13 @@ cd pysdp
 #    See config.ini for all available keys and their defaults.
 
 # 3. Install: creates .venv, installs Python deps, downloads SDPCLI binary
-powershell -ExecutionPolicy Bypass -File .\install.ps1
+.\install.bat
 
 # 4. Start
-.\webui.ps1
+.\webui.bat
 ```
 
-`webui.ps1` automatically: kills stale port processes → loads `.env` → starts SDPCLI Server with `-projectdir` (if available) → starts WebUI → opens browser. Press **ESC** to stop all processes.
+`webui.bat` (wraps `webui.ps1`) automatically: kills stale port processes → loads `.env` → starts SDPCLI Server with `-projectdir` (if available) → starts WebUI → opens browser. Press **ESC** to stop all processes.
 
 Open **http://localhost:8000** in your browser.
 
@@ -124,7 +124,7 @@ Open **http://localhost:8000** in your browser.
 
 ### SDPCLI requirement
 
-pysdp requires SDPCLI for both live capture and offline analysis (C# extraction step). `install.ps1` downloads it automatically; if missing, `webui.ps1` will fail to start.
+pysdp requires SDPCLI for both live capture and offline analysis (C# extraction step). `install.bat` downloads it automatically; if missing, `webui.bat` will fail to start.
 
 ### Project Directory
 
@@ -145,21 +145,21 @@ ProjectDir/
 Configuration:
 
 - **Recommended**: set `PYSDP_PROJECT_DIR=D:/your/project` in `.env`
-- **Command-line override**: `.\webui.ps1 -ProjectDir D:\other\project` (takes precedence over .env)
+- **Command-line override**: `.\webui.bat -ProjectDir D:\other\project` (takes precedence over .env)
 
-`webui.ps1` reads ProjectDir on startup and passes it to SDPCLI via the `-projectdir` argument automatically.
+`webui.bat` reads ProjectDir on startup and passes it to SDPCLI via the `-projectdir` argument automatically.
 
 ### Custom ports
 
-```powershell
-.\webui.ps1 -Port 8080 -SdpcliPort 5001
+```bat
+.\webui.bat -Port 8080 -SdpcliPort 5001
 ```
 
 ### SDPCLI binary location
 
-`install.ps1` downloads SDPCLI to `%USERPROFILE%\.pysdp\sdpcli\SDPCLI.exe`.  
-To force re-download (e.g. after version bump in `pyproject.toml`): `.\install.ps1 -Force`  
-To use a custom binary, set `PYSDP_SDPCLI_PATH=C:\path\to\SDPCLI.exe` in `.env` before running `webui.ps1`.
+`install.bat` downloads SDPCLI to `%USERPROFILE%\.pysdp\sdpcli\SDPCLI.exe`.  
+To force re-download (e.g. after version bump in `pyproject.toml`): `.\install.bat -Force`  
+To use a custom binary, set `PYSDP_SDPCLI_PATH=C:\path\to\SDPCLI.exe` in `.env` before running `webui.bat`.
 
 ---
 
@@ -434,20 +434,20 @@ Supported Adreno GPUs:
 
 ### Installation & Startup
 
-**Q: `install.ps1` fails to download SDPCLI**  
+**Q: `install.bat` fails to download SDPCLI**  
 A: Check your network connection. If behind a corporate proxy, set `HTTP_PROXY` / `HTTPS_PROXY` env vars before running. You can also manually download from [sdpcli-releases](https://github.com/mysheng8/sdpcli-releases/releases) and extract to `%USERPROFILE%\.pysdp\sdpcli\`.
 
-**Q: `webui.ps1` reports "port already in use"**  
-A: Another process is occupying port 8000 or 5000. Either kill it manually (`netstat -ano | findstr :8000`) or use a different port: `.\webui.ps1 -Port 8080 -SdpcliPort 5001`.
+**Q: `webui.bat` reports "port already in use"**  
+A: Another process is occupying port 8000 or 5000. Either kill it manually (`netstat -ano | findstr :8000`) or use a different port: `.\webui.bat -Port 8080 -SdpcliPort 5001`.
 
 **Q: Python version error or missing modules**  
-A: pysdp requires Python 3.10+. Run `python --version` to confirm. If you have multiple Python installations, ensure the correct one is first in PATH. Delete `.venv/` and re-run `.\install.ps1`.
+A: pysdp requires Python 3.10+. Run `python --version` to confirm. If you have multiple Python installations, ensure the correct one is first in PATH. Delete `.venv/` and re-run `.\install.bat`.
 
 **Q: `.env` changes don't take effect**  
-A: `webui.ps1` reads `.env` on every startup — you must restart the server. Make sure the file is named exactly `.env` (not `.env.txt`) and is in the repo root.
+A: `webui.bat` reads `.env` on every startup — you must restart the server. Make sure the file is named exactly `.env` (not `.env.txt`) and is in the repo root.
 
 **Q: SDPCLI version mismatch after update**  
-A: Run `.\install.ps1 -Force` to re-download the version specified in `pyproject.toml`.
+A: Run `.\install.bat -Force` to re-download the version specified in `pyproject.toml`.
 
 ### Capture & Analysis
 
