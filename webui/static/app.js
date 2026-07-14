@@ -1505,6 +1505,7 @@ async function loadAnalysisSettings() {
 // ── Project Manager ─────────────────────────────────────────────────────────
 
 let _pmSelectedProjectId = null;
+let _pmSelectedVersionId = null;
 
 async function openProjectManager() {
   closeModal('settings-modal');
@@ -1533,10 +1534,15 @@ async function openProjectManager() {
           </div>
           <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
             <div style="display:flex;justify-content:space-between;align-items:center">
-              <span style="font-weight:600;font-size:14px">Versions</span>
+              <div>
+                <span style="font-weight:600;font-size:14px">Versions</span>
+                <span id="pm-current-project" style="font-size:12px;color:var(--text-muted);margin-left:8px"></span>
+              </div>
               <button class="btn-secondary btn-sm" id="pm-add-version-btn" onclick="pmAddVersion()" disabled>+ New</button>
             </div>
-            <div id="pm-version-list" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;max-height:360px"></div>
+            <div id="pm-version-list" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;max-height:360px">
+              <div class="pm-hint">← 请先选择一个项目</div>
+            </div>
           </div>
         </div>
       </div>
@@ -1544,12 +1550,35 @@ async function openProjectManager() {
   `;
   document.body.appendChild(modal);
   _pmSelectedProjectId = null;
+  _pmSelectedVersionId = null;
   await pmRefreshProjects();
 }
 
-function closeProjectManager() {
+async function closeProjectManager() {
   const m = document.getElementById('project-manager-modal');
   if (m) m.remove();
+
+  // 将选中的 project 和 version 同步到 New Capture modal
+  if (_pmSelectedProjectId) {
+    localStorage.setItem('lastCaptureProject', _pmSelectedProjectId);
+    if (_pmSelectedVersionId) {
+      localStorage.setItem(`lastVersion_${_pmSelectedProjectId}`, _pmSelectedVersionId);
+    }
+
+    // 如果 New Capture modal 已打开，立即同步选择
+    const captureModal = document.getElementById('snapshot-modal');
+    if (captureModal && captureModal.style.display !== 'none') {
+      const projSel = document.getElementById('capture-project');
+      if (projSel && projSel.value !== _pmSelectedProjectId) {
+        projSel.value = _pmSelectedProjectId;
+        await onCaptureProjectChange();
+        if (_pmSelectedVersionId) {
+          const verSel = document.getElementById('capture-version');
+          if (verSel) verSel.value = _pmSelectedVersionId;
+        }
+      }
+    }
+  }
 }
 
 async function pmRefreshProjects() {
@@ -1558,7 +1587,8 @@ async function pmRefreshProjects() {
   const list = document.getElementById('pm-project-list');
   if (!list) return;
   list.innerHTML = '';
-  (res.data || []).forEach(p => {
+  const projects = res.data || [];
+  projects.forEach(p => {
     const item = document.createElement('div');
     item.className = 'pm-item' + (p.id === _pmSelectedProjectId ? ' pm-selected' : '');
     item.dataset.id = p.id;
@@ -1568,6 +1598,12 @@ async function pmRefreshProjects() {
     list.appendChild(item);
   });
   await _populateHomeFilterProjects();
+  await _loadCaptureProjects();
+
+  // 如果没有选中项目，但有项目存在，自动选中第一个
+  if (!_pmSelectedProjectId && projects.length > 0) {
+    await pmSelectProject(projects[0].id);
+  }
 }
 
 async function pmSelectProject(pid) {
@@ -1576,16 +1612,43 @@ async function pmSelectProject(pid) {
     el.classList.toggle('pm-selected', el.dataset.id === pid);
   });
   document.getElementById('pm-add-version-btn').disabled = false;
+
+  // 更新当前项目名显示
+  const projectName = document.querySelector(`#pm-project-list .pm-item[data-id="${pid}"] span`)?.textContent || '';
+  const currentProjectLabel = document.getElementById('pm-current-project');
+  if (currentProjectLabel) {
+    currentProjectLabel.textContent = `(${projectName})`;
+  }
+
   const res = await apiGet(`${DATA}/projects/${pid}/versions`);
   const list = document.getElementById('pm-version-list');
   list.innerHTML = '';
   if (!res.ok) return;
-  (res.data || []).forEach(v => {
-    const item = document.createElement('div');
-    item.className = 'pm-item';
-    item.innerHTML = `<span style="flex:1">${escHtml(v.name)}</span>
-      <button class="btn-secondary btn-sm" onclick="pmDeleteVersion('${v.id}')" style="padding:2px 6px;font-size:11px">&#10005;</button>`;
-    list.appendChild(item);
+  const versions = res.data || [];
+  if (versions.length === 0) {
+    list.innerHTML = '<div class="pm-hint">该项目还没有版本</div>';
+    _pmSelectedVersionId = null;
+  } else {
+    // 如果没有选中的 version 或选中的 version 不在当前列表中，自动选中第一个
+    if (!_pmSelectedVersionId || !versions.some(v => v.id === _pmSelectedVersionId)) {
+      _pmSelectedVersionId = versions[0].id;
+    }
+    versions.forEach(v => {
+      const item = document.createElement('div');
+      item.className = 'pm-item' + (v.id === _pmSelectedVersionId ? ' pm-selected' : '');
+      item.dataset.id = v.id;
+      item.innerHTML = `<span style="flex:1">${escHtml(v.name)}</span>
+        <button class="btn-secondary btn-sm" onclick="event.stopPropagation();pmDeleteVersion('${v.id}')" style="padding:2px 6px;font-size:11px">&#10005;</button>`;
+      item.onclick = () => pmSelectVersion(v.id);
+      list.appendChild(item);
+    });
+  }
+}
+
+function pmSelectVersion(vid) {
+  _pmSelectedVersionId = vid;
+  document.querySelectorAll('#pm-version-list .pm-item').forEach(el => {
+    el.classList.toggle('pm-selected', el.dataset.id === vid);
   });
 }
 
@@ -1601,10 +1664,20 @@ async function pmAddProject() {
 async function pmDeleteProject(pid) {
   if (!confirm('Delete this project and all its versions?')) return;
   await fetch(`${DATA}/projects/${pid}`, { method: 'DELETE' });
+
+  // 清除相关的 localStorage
+  localStorage.removeItem(`lastVersion_${pid}`);
+  if (localStorage.getItem('lastCaptureProject') === pid) {
+    localStorage.removeItem('lastCaptureProject');
+  }
+
   if (_pmSelectedProjectId === pid) {
     _pmSelectedProjectId = null;
+    _pmSelectedVersionId = null;
     const vl = document.getElementById('pm-version-list');
-    if (vl) vl.innerHTML = '';
+    if (vl) vl.innerHTML = '<div class="pm-hint">← 请先选择一个项目</div>';
+    const currentProjectLabel = document.getElementById('pm-current-project');
+    if (currentProjectLabel) currentProjectLabel.textContent = '';
     document.getElementById('pm-add-version-btn').disabled = true;
   }
   await pmRefreshProjects();
@@ -1616,12 +1689,16 @@ async function pmAddVersion() {
   if (!name || !name.trim()) return;
   const res = await apiPost(`${DATA}/projects/${_pmSelectedProjectId}/versions`, { name: name.trim() });
   if (!res.ok) { alert(res.error || 'Failed'); return; }
+  _pmSelectedVersionId = res.data.id;  // 自动选中新创建的 version
   await pmSelectProject(_pmSelectedProjectId);
 }
 
 async function pmDeleteVersion(vid) {
   if (!confirm('Delete this version?')) return;
   await fetch(`${DATA}/versions/${vid}`, { method: 'DELETE' });
+  if (_pmSelectedVersionId === vid) {
+    _pmSelectedVersionId = null;
+  }
   if (_pmSelectedProjectId) await pmSelectProject(_pmSelectedProjectId);
 }
 
@@ -4283,32 +4360,64 @@ async function _loadCaptureProjects() {
   if (!res.ok) return;
   const sel = document.getElementById('capture-project');
   sel.innerHTML = '<option value="">— select project —</option>';
-  (res.data || []).forEach(p => {
+  const projects = res.data || [];
+  projects.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.id;
     opt.textContent = p.name;
     sel.appendChild(opt);
   });
+
+  // 恢复上次选择的 project 和 version
+  const lastProjectId = localStorage.getItem('lastCaptureProject');
+  if (lastProjectId && projects.some(p => p.id === lastProjectId)) {
+    sel.value = lastProjectId;
+    await onCaptureProjectChange();
+  }
 }
 
 async function onCaptureProjectChange() {
   const pid = document.getElementById('capture-project').value;
   const vSel = document.getElementById('capture-version');
+
+  // 保存选择的 project
+  if (pid) {
+    localStorage.setItem('lastCaptureProject', pid);
+  }
+
   if (!pid) {
     vSel.disabled = true;
     vSel.innerHTML = '<option value="">— select version —</option>';
     return;
   }
+
   const res = await apiGet(`${DATA}/projects/${pid}/versions`);
   vSel.disabled = false;
   vSel.innerHTML = '<option value="">— select version —</option>';
   if (!res.ok) return;
-  (res.data || []).forEach(v => {
+  const versions = res.data || [];
+  versions.forEach(v => {
     const opt = document.createElement('option');
     opt.value = v.id;
     opt.textContent = v.name;
     vSel.appendChild(opt);
   });
+
+  // 尝试选中上次选择的 version（如果存在于当前 project 中）
+  const lastVersionId = localStorage.getItem(`lastVersion_${pid}`);
+  if (lastVersionId && versions.some(v => v.id === lastVersionId)) {
+    vSel.value = lastVersionId;
+  } else if (versions.length > 0) {
+    // 如果没有上次记录或上次的 version 不存在，选中第一个
+    vSel.value = versions[0].id;
+  }
+
+  // 监听 version 选择变化，保存到 localStorage
+  vSel.onchange = () => {
+    if (vSel.value) {
+      localStorage.setItem(`lastVersion_${pid}`, vSel.value);
+    }
+  };
 }
 
 function closeModal(id) {

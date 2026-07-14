@@ -1513,6 +1513,54 @@ body.chat-open .home-detail-bar { right: 600px; }
 }
 .chat-close-btn:hover { color: var(--text); }
 
+.chat-session-bar {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 4px 10px;
+  background: var(--bg-alt, var(--surface));
+}
+.session-list-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.session-list-header span { flex: 1; }
+.session-list-header button {
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; color: var(--muted); padding: 0 4px;
+}
+.session-list-header button:hover { color: var(--text); }
+.session-list {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+.session-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.1s;
+}
+.session-entry:hover { background: var(--hover, rgba(0,0,0,0.05)); }
+.session-entry.active { background: var(--accent-bg, rgba(59,130,246,0.1)); font-weight: 500; }
+.session-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.session-delete-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 14px; padding: 0 2px;
+  opacity: 0; transition: opacity 0.15s;
+}
+.session-entry:hover .session-delete-btn { opacity: 1; }
+.session-delete-btn:hover { color: var(--danger, #ef4444); }
+.session-empty { font-size: 11px; color: var(--muted); padding: 6px 4px; }
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -2014,9 +2062,23 @@ body.chat-open .home-detail-bar { right: 600px; }
   display: flex;
   align-items: center;
   gap: 8px;
+  transition: all 0.15s ease;
 }
 .pm-item:hover { background: var(--hover-bg); }
-.pm-item.pm-selected { background: var(--hover-bg); border-color: var(--primary); }
+.pm-item.pm-selected {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: var(--primary);
+  border-width: 2px;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.pm-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 20px 10px;
+  font-style: italic;
+}
 
 /* ── Set popover list ────────────────────────────────────────── */
 .popover-list {
