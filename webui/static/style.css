@@ -2339,14 +2339,19 @@ body.chat-open .home-detail-bar { right: 600px; }
 
 .prompt-textarea {
   width: 100%;
-  min-height: 120px;
+  min-height: 150px;
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.6;
   resize: vertical;
   background: #fafafa;
+}
+
+.prompt-textarea.prompt-textarea-large {
+  min-height: 450px;
 }
 
 .prompt-textarea:focus {
@@ -2411,4 +2416,65 @@ body.chat-open .home-detail-bar { right: 600px; }
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 4px;
+}
+
+/* ── Modal Fixed Size ──────────────────────────────────────── */
+.modal-md {
+  width: 1200px;
+  max-width: 95vw;
+  height: 85vh;
+  max-height: 900px;
+}
+
+.modal-fixed {
+  min-height: 85vh;
+}
+
+.modal-fixed .modal-body {
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* ── Collapsible Prompt Field ─────────────────────────────────── */
+.prompt-field-collapsible .prompt-field-label:hover {
+  background: rgba(0,0,0,0.02);
+  border-radius: 4px;
+}
+
+.prompt-collapse-icon {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+
+.prompt-field-content {
+  margin-top: 8px;
+}
+
+/* ── Preset Management ─────────────────────────────────────────── */
+.prompt-preset-select {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  min-width: 200px;
+}
+
+.prompt-preset-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.prompt-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
 }

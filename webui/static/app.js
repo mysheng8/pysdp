@@ -4574,24 +4574,28 @@ function renderPromptBody(promptId, data) {
                      current.user_template !== data.default.user_template;
 
   body.innerHTML = `
-    <div class="prompt-field">
-      <div class="prompt-field-label">
-        <span>System Prompt</span>
+    <div class="prompt-field prompt-field-collapsible">
+      <div class="prompt-field-label" style="cursor:pointer;user-select:none" onclick="toggleSystemPrompt('${promptId}')">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="prompt-collapse-icon" id="sys-icon-${promptId}">▶</span>
+          <span>System Prompt (optional)</span>
+        </div>
         <span class="prompt-char-count" id="sys-char-${promptId}">0 chars</span>
       </div>
-      <textarea class="prompt-textarea" id="prompt-sys-${promptId}" 
-                oninput="updateCharCount('${promptId}')">${escapeHtml(current.system_prompt || '')}</textarea>
-      <div class="prompt-field-hint">Sent to the LLM as the system message</div>
+      <div class="prompt-field-content" id="sys-content-${promptId}" style="display:none">
+        <textarea class="prompt-textarea" id="prompt-sys-${promptId}"
+                  oninput="updateCharCount('${promptId}')">${escapeHtml(current.system_prompt || '')}</textarea>
+        <div class="prompt-field-hint">Sent to the LLM as the system message</div>
+      </div>
     </div>
 
     <div class="prompt-field">
       <div class="prompt-field-label">
-        <span>User Template</span>
+        <span>User Prompt</span>
         <span class="prompt-char-count" id="user-char-${promptId}">0 chars</span>
       </div>
-      <textarea class="prompt-textarea" id="prompt-user-${promptId}" 
-                oninput="updateCharCount('${promptId}')"
-                style="min-height:200px">${escapeHtml(current.user_template || '')}</textarea>
+      <textarea class="prompt-textarea prompt-textarea-large" id="prompt-user-${promptId}"
+                oninput="updateCharCount('${promptId}')">${escapeHtml(current.user_template || '')}</textarea>
       <div class="prompt-field-hint">
         Use {variable} placeholders for dynamic substitution
       </div>
@@ -4603,15 +4607,24 @@ function renderPromptBody(promptId, data) {
     </div>
 
     <div class="prompt-actions">
-      ${hasCustom ? `<button class="btn-secondary btn-sm" onclick="resetPrompt('${promptId}')">Reset to Default</button>` : ''}
-      <button class="btn-secondary btn-sm" onclick="previewPrompt('${promptId}')">Preview</button>
-      <button class="btn-primary btn-sm" onclick="savePrompt('${promptId}')">Save</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="prompt-preset-select" id="preset-select-${promptId}" onchange="loadPresetFromSelect('${promptId}')">
+          <option value="">Load Preset...</option>
+        </select>
+        <button class="btn-secondary btn-sm" onclick="exportToPreset('${promptId}')">Export to Preset</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        ${hasCustom ? `<button class="btn-secondary btn-sm" onclick="resetPrompt('${promptId}')">Reset to Default</button>` : ''}
+        <button class="btn-secondary btn-sm" onclick="previewPrompt('${promptId}')">Preview</button>
+        <button class="btn-primary btn-sm" onclick="savePrompt('${promptId}')">Save</button>
+      </div>
     </div>
 
     <div class="prompt-preview-section" id="prompt-preview-${promptId}"></div>
   `;
 
   updateCharCount(promptId);
+  loadPresetList(promptId);
 }
 
 function updateCharCount(promptId) {
@@ -4761,4 +4774,109 @@ function showPromptsMsg(msg, type = 'success') {
   el.style.color = type === 'success' ? 'var(--success)' : 'var(--error)';
   el.style.display = 'block';
   setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+function toggleSystemPrompt(promptId) {
+  const content = document.getElementById(`sys-content-${promptId}`);
+  const icon = document.getElementById(`sys-icon-${promptId}`);
+  if (!content || !icon) return;
+
+  const isHidden = content.style.display === 'none';
+  content.style.display = isHidden ? 'block' : 'none';
+  icon.textContent = isHidden ? '▼' : '▶';
+}
+
+// ── Preset Management ────────────────────────────────────────────────────────
+
+async function loadPresetList(promptId) {
+  try {
+    const resp = await fetch(`/api/prompts/${promptId}/presets`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    
+    const select = document.getElementById(`preset-select-${promptId}`);
+    if (!select) return;
+    
+    // Clear and rebuild options
+    select.innerHTML = '<option value="">Load Preset...</option>';
+    (data.presets || []).forEach(preset => {
+      const opt = document.createElement('option');
+      opt.value = preset.name;
+      opt.textContent = preset.name + (preset.description ? ` - ${preset.description}` : '');
+      select.appendChild(opt);
+    });
+  } catch (err) {
+    console.error('Failed to load preset list:', err);
+  }
+}
+
+async function loadPresetFromSelect(promptId) {
+  const select = document.getElementById(`preset-select-${promptId}`);
+  if (!select || !select.value) return;
+  
+  const presetName = select.value;
+  
+  try {
+    const resp = await fetch(`/api/prompts/${promptId}/presets/${presetName}`);
+    if (!resp.ok) throw new Error(`Failed to load preset: ${resp.statusText}`);
+    
+    const preset = await resp.json();
+    
+    // Fill textareas with preset content
+    const sysEl = document.getElementById(`prompt-sys-${promptId}`);
+    const userEl = document.getElementById(`prompt-user-${promptId}`);
+    
+    if (sysEl) sysEl.value = preset.system_prompt || '';
+    if (userEl) userEl.value = preset.user_template || '';
+    
+    updateCharCount(promptId);
+    showPromptsMsg(`Preset '${presetName}' loaded`, 'success');
+    
+    // Reset select
+    select.value = '';
+  } catch (err) {
+    showPromptsMsg('Failed to load preset: ' + err.message, 'error');
+    select.value = '';
+  }
+}
+
+async function exportToPreset(promptId) {
+  const sysEl = document.getElementById(`prompt-sys-${promptId}`);
+  const userEl = document.getElementById(`prompt-user-${promptId}`);
+  if (!sysEl || !userEl) return;
+  
+  const name = prompt('Enter preset name (letters, numbers, hyphens, underscores only):');
+  if (!name) return;
+  
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    alert('Invalid name. Use only letters, numbers, hyphens, and underscores.');
+    return;
+  }
+  
+  const description = prompt('Enter preset description (optional):') || '';
+  
+  try {
+    const resp = await fetch(`/api/prompts/${promptId}/presets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name,
+        description: description,
+        system_prompt: sysEl.value,
+        user_template: userEl.value
+      })
+    });
+    
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.detail || resp.statusText);
+    }
+    
+    showPromptsMsg(`Preset '${name}' exported successfully`, 'success');
+    
+    // Reload preset list
+    await loadPresetList(promptId);
+  } catch (err) {
+    showPromptsMsg('Failed to export preset: ' + err.message, 'error');
+  }
 }

@@ -268,3 +268,150 @@ async def import_config(data: dict):
         return {"success": True, "message": "Configuration imported successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Preset Management ──────────────────────────────────────────────────────────
+
+
+class PresetSaveRequest(BaseModel):
+    """Request model for saving a preset."""
+
+    name: str
+    description: str | None = None
+    system_prompt: str | None = None
+    user_template: str | None = None
+
+
+@router.get("/{prompt_id}/presets")
+async def list_presets(prompt_id: str):
+    """List all saved presets for a prompt.
+
+    Args:
+        prompt_id: Prompt identifier
+
+    Returns:
+        List of preset metadata
+    """
+    from pathlib import Path
+    import json
+
+    preset_dir = Path("presets") / prompt_id
+    if not preset_dir.exists():
+        return {"presets": []}
+
+    presets = []
+    for preset_file in preset_dir.glob("*.json"):
+        try:
+            data = json.loads(preset_file.read_text(encoding="utf-8"))
+            presets.append({
+                "name": preset_file.stem,
+                "description": data.get("description", ""),
+                "created_at": data.get("created_at"),
+            })
+        except Exception:
+            continue
+
+    return {"presets": sorted(presets, key=lambda x: x.get("created_at", ""), reverse=True)}
+
+
+@router.post("/{prompt_id}/presets")
+async def save_preset(prompt_id: str, request: PresetSaveRequest):
+    """Save current prompt as a preset.
+
+    Args:
+        prompt_id: Prompt identifier
+        request: Preset save request with name, description, and prompt content
+
+    Returns:
+        Success message
+    """
+    from pathlib import Path
+    from datetime import datetime
+    import json
+    import re
+
+    # Validate preset name
+    if not request.name or not re.match(r'^[a-zA-Z0-9_-]+$', request.name):
+        raise HTTPException(
+            status_code=400,
+            detail="Preset name must contain only letters, numbers, hyphens, and underscores",
+        )
+
+    preset_dir = Path("presets") / prompt_id
+    preset_dir.mkdir(parents=True, exist_ok=True)
+
+    preset_file = preset_dir / f"{request.name}.json"
+
+    preset_data = {
+        "name": request.name,
+        "description": request.description or "",
+        "system_prompt": request.system_prompt or "",
+        "user_template": request.user_template or "",
+        "created_at": datetime.now().isoformat(),
+    }
+
+    try:
+        preset_file.write_text(
+            json.dumps(preset_data, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return {"success": True, "message": f"Preset '{request.name}' saved successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{prompt_id}/presets/{preset_name}")
+async def load_preset(prompt_id: str, preset_name: str):
+    """Load a saved preset.
+
+    Args:
+        prompt_id: Prompt identifier
+        preset_name: Preset name
+
+    Returns:
+        Preset content
+    """
+    from pathlib import Path
+    import json
+
+    preset_file = Path("presets") / prompt_id / f"{preset_name}.json"
+
+    if not preset_file.exists():
+        raise HTTPException(status_code=404, detail=f"Preset '{preset_name}' not found")
+
+    try:
+        data = json.loads(preset_file.read_text(encoding="utf-8"))
+        return {
+            "name": data.get("name"),
+            "description": data.get("description"),
+            "system_prompt": data.get("system_prompt"),
+            "user_template": data.get("user_template"),
+            "created_at": data.get("created_at"),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{prompt_id}/presets/{preset_name}")
+async def delete_preset(prompt_id: str, preset_name: str):
+    """Delete a saved preset.
+
+    Args:
+        prompt_id: Prompt identifier
+        preset_name: Preset name
+
+    Returns:
+        Success message
+    """
+    from pathlib import Path
+
+    preset_file = Path("presets") / prompt_id / f"{preset_name}.json"
+
+    if not preset_file.exists():
+        raise HTTPException(status_code=404, detail=f"Preset '{preset_name}' not found")
+
+    try:
+        preset_file.unlink()
+        return {"success": True, "message": f"Preset '{preset_name}' deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
