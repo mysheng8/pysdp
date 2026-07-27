@@ -4709,14 +4709,10 @@ async function previewPrompt(promptId) {
     verts_per_inst: 1024,
     texture_count: 3,
     shader_stages: 'vert:vs_main, frag:ps_main',
-    render_targets_section: 'Render targets:
-  [0] Color 1920x1080 R8G8B8A8_UNORM',
-    mesh_section: 'Mesh:
-  vertices:1024  faces:512',
-    texture_descriptions_section: 'Textures:
-  [0] 2048x2048 Albedo map',
-    shader_code: '// Sample shader
-void main() { gl_FragColor = vec4(1.0); }',
+    render_targets_section: 'Render targets:\\n  [0] Color 1920x1080 R8G8B8A8_UNORM',
+    mesh_section: 'Mesh:\\n  vertices:1024  faces:512',
+    texture_descriptions_section: 'Textures:\\n  [0] 2048x2048 Albedo map',
+    shader_code: '// Sample shader\\nvoid main() { gl_FragColor = vec4(1.0); }',
     category_list: 'Scene/Terrain/Character/PostProcess/VFX/UI/Other'
   };
 
