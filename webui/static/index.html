@@ -23,7 +23,7 @@
     <span class="badge badge-gray" id="server-badge">● SDPCLI: —</span>
     <span class="badge badge-gray" id="device-badge">Disconnected</span>
     <span class="badge badge-gray header-btn" onclick="switchTab('logs')" title="Logs">&#128221; Logs <span class="log-header-badge hidden" id="log-header-badge">0</span></span>
-    <span class="badge badge-gray header-btn" onclick="openModal('settings-modal')" title="Settings">&#9881; Settings</span>
+    <span class="badge badge-gray header-btn" onclick="switchTab('settings')" title="Settings">&#9881; Settings</span>
     <span class="badge badge-gray header-btn" onclick="switchTab('apidocs')" title="API Docs">&#128196; API Docs</span>
     <span class="badge badge-blue header-btn" id="chat-toggle-btn" onclick="toggleChatPanel()" title="AI Chat">&#128172; Chat</span>
   </div>
@@ -119,6 +119,69 @@
       <div id="log-list"><span class="muted log-empty">No log entries.</span></div>
     </div>
 
+  </section>
+
+  <!-- ══ Settings Tab ════════════════════════════════════════════ -->
+  <section id="tab-settings" class="tab-content">
+    <div class="card">
+      <div class="card-title">Settings</div>
+
+      <!-- Settings tabs -->
+      <div class="settings-tabs">
+        <button class="settings-tab active" data-tab="general" onclick="switchSettingsTab('general')">General</button>
+        <button class="settings-tab" data-tab="prompts" onclick="switchSettingsTab('prompts')">AI Prompts</button>
+      </div>
+
+      <!-- General settings tab -->
+      <div class="settings-tab-content" id="settings-general" style="display:block">
+        <div class="form-row" style="margin-top:10px">
+          <label>SDP Directory</label>
+          <input id="sdp-dir" type="text" placeholder="D:/snapdragon/project/sdp" style="flex:1;min-width:0">
+        </div>
+        <div class="form-row">
+          <label>Analysis Directory</label>
+          <input id="shared-snap-dir" type="text" placeholder="D:/snapdragon/project/analysis" style="flex:1;min-width:0">
+        </div>
+        <div class="form-row">
+          <label>Report Directory</label>
+          <input id="report-dir" type="text" placeholder="D:/snapdragon/project/reports" style="flex:1;min-width:0">
+        </div>
+        <div class="form-row">
+          <label>Snapshot ID</label>
+          <input id="snapshot-id" type="number" value="1" style="max-width:120px">
+          <span class="muted" style="font-size:11px;margin-left:6px">1 = all snapshots</span>
+        </div>
+        <div class="form-row" style="align-items:flex-start">
+          <label style="padding-top:6px">Targets</label>
+          <div class="targets-grid" id="targets-grid"></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn-secondary btn-sm" onclick="saveAnalysisSettings()">Save Settings</button>
+          <button class="btn-secondary btn-sm" onclick="doReingest()">Re-ingest DB</button>
+        </div>
+        <div class="status-msg" id="settings-save-msg"></div>
+        <hr style="margin:16px 0;border-color:var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:600;font-size:14px">Projects &amp; Versions</span>
+          <button class="btn-secondary btn-sm" onclick="openProjectManager()">Manage</button>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:6px">
+          Organize snapshots by project and version for comparison.
+        </div>
+      </div>
+
+      <!-- AI Prompts tab -->
+      <div class="settings-tab-content" id="settings-prompts" style="display:none">
+        <div class="prompts-header">
+          <p class="muted" style="font-size:12px;margin:10px 0">
+            Customize AI prompts for each analysis step. Changes take effect immediately.
+            <span class="badge badge-orange" style="margin-left:8px;font-size:10px">EXPERIMENTAL</span>
+          </p>
+        </div>
+        <div id="prompts-list"></div>
+        <div class="status-msg" id="prompts-save-msg"></div>
+      </div>
+    </div>
   </section>
 
   <!-- ══ API Docs Tab ════════════════════════════════════════════ -->
@@ -238,73 +301,6 @@
         <div class="captures-list" id="captures-list"></div>
       </div>
 
-    </div>
-  </div>
-</div>
-
-<!-- ══ Settings Modal ═════════════════════════════════════════ -->
-<div class="modal-overlay" id="settings-modal" style="display:none">
-  <div class="modal-backdrop" onclick="closeModal('settings-modal')"></div>
-  <div class="modal-panel modal-md modal-fixed">
-    <div class="modal-header">
-      <span class="modal-title">Settings</span>
-      <button class="modal-close" onclick="closeModal('settings-modal')">&#10005;</button>
-    </div>
-
-    <!-- Settings tabs -->
-    <div class="settings-tabs">
-      <button class="settings-tab active" data-tab="general" onclick="switchSettingsTab('general')">General</button>
-      <button class="settings-tab" data-tab="prompts" onclick="switchSettingsTab('prompts')">AI Prompts</button>
-    </div>
-
-    <!-- General settings tab -->
-    <div class="modal-body settings-tab-content" id="settings-general" style="display:block">
-      <div class="form-row" style="margin-top:10px">
-        <label>SDP Directory</label>
-        <input id="sdp-dir" type="text" placeholder="D:/snapdragon/project/sdp" style="flex:1;min-width:0">
-      </div>
-      <div class="form-row">
-        <label>Analysis Directory</label>
-        <input id="shared-snap-dir" type="text" placeholder="D:/snapdragon/project/analysis" style="flex:1;min-width:0">
-      </div>
-      <div class="form-row">
-        <label>Report Directory</label>
-        <input id="report-dir" type="text" placeholder="D:/snapdragon/project/reports" style="flex:1;min-width:0">
-      </div>
-      <div class="form-row">
-        <label>Snapshot ID</label>
-        <input id="snapshot-id" type="number" value="1" style="max-width:120px">
-        <span class="muted" style="font-size:11px;margin-left:6px">1 = all snapshots</span>
-      </div>
-      <div class="form-row" style="align-items:flex-start">
-        <label style="padding-top:6px">Targets</label>
-        <div class="targets-grid" id="targets-grid"></div>
-      </div>
-      <div class="btn-row">
-        <button class="btn-secondary btn-sm" onclick="saveAnalysisSettings()">Save Settings</button>
-        <button class="btn-secondary btn-sm" onclick="doReingest()">Re-ingest DB</button>
-      </div>
-      <div class="status-msg" id="settings-save-msg"></div>
-      <hr style="margin:16px 0;border-color:var(--border)">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-weight:600;font-size:14px">Projects &amp; Versions</span>
-        <button class="btn-secondary btn-sm" onclick="openProjectManager()">Manage</button>
-      </div>
-      <div class="muted" style="font-size:12px;margin-top:6px">
-        Organize snapshots by project and version for comparison.
-      </div>
-    </div>
-
-    <!-- AI Prompts tab -->
-    <div class="modal-body settings-tab-content" id="settings-prompts" style="display:none">
-      <div class="prompts-header">
-        <p class="muted" style="font-size:12px;margin:10px 0">
-          Customize AI prompts for each analysis step. Changes take effect immediately.
-          <span class="badge badge-orange" style="margin-left:8px;font-size:10px">EXPERIMENTAL</span>
-        </p>
-      </div>
-      <div id="prompts-list"></div>
-      <div class="status-msg" id="prompts-save-msg"></div>
     </div>
   </div>
 </div>
