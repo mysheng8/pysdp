@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from config.prompt_manager import get_prompt_manager, reload_prompts
+from prompt_config.prompt_manager import get_prompt_manager, reload_prompts
 
 router = APIRouter(prefix="/api/prompts", tags=["prompts"])
 

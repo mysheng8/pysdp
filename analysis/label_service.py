@@ -285,7 +285,7 @@ def _load_shader_code(snap: Path, pipeline_id: int) -> str:
 
 def _build_llm_prompt(dc: dict, shader_code: str) -> str:
     """Build LLM prompt using PromptManager (customizable via prompts.json)."""
-    from config.prompt_manager import get_prompt_manager
+    from prompt_config.prompt_manager import get_prompt_manager
 
     # Extract DC parameters
     cat_list  = "/".join(_ALLOWED_CATEGORIES)

@@ -1,7 +1,7 @@
 """Prompt configuration manager — load from prompts.json with fallback to defaults.
 
 Usage:
-    from config.prompt_manager import get_prompt_manager
+    from prompt_config.prompt_manager import get_prompt_manager
 
     pm = get_prompt_manager()
     system, user = pm.render_prompt("label_dc", {

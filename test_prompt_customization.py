@@ -10,7 +10,7 @@ This script tests:
 3. Custom prompts from prompts.json (if exists)
 """
 
-from config.prompt_manager import get_prompt_manager
+from prompt_config.prompt_manager import get_prompt_manager
 
 
 def test_default_prompts():
