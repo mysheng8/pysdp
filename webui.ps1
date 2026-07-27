@@ -58,7 +58,23 @@ if (-not $sdpcliExe) {
     $sdpcliDir = Split-Path $sdpcliExe
     $projectArg = if ($ProjectDir) { " -projectdir `"$ProjectDir`"" } else { "" }
     Write-Host "`n Starting SDPCLI Server on port $SdpcliPort..."
-    $sdpcliArgs = "/k cd /d `"$sdpcliDir`" && `"$sdpcliExe`" server --port $SdpcliPort$projectArg"
+
+    # 确保 ADB 在 PATH 中供 SDPCore 使用
+    $adbCmd = Get-Command adb -ErrorAction SilentlyContinue
+    if ($adbCmd) {
+        $adbDir = Split-Path $adbCmd.Source
+        Write-Host " ADB found: $adbDir"
+        Write-Host " Configuring PATH for SDPCLI..."
+
+        # 使用 cmd /k 直接在命令行中设置 PATH
+        $pathCmd = "set `"PATH=$adbDir;%PATH%`""
+        $sdpcliCmd = "`"$sdpcliExe`" server --port $SdpcliPort$projectArg"
+        $sdpcliArgs = "/k cd /d `"$sdpcliDir`" && $pathCmd && $sdpcliCmd"
+    } else {
+        Write-Host " [WARN] ADB not found in PATH - device connection may fail"
+        $sdpcliArgs = "/k cd /d `"$sdpcliDir`" && `"$sdpcliExe`" server --port $SdpcliPort$projectArg"
+    }
+
     $sdpcliProc = Start-Process "cmd" -ArgumentList $sdpcliArgs -WindowStyle Normal -PassThru
 
     # Wait for SDPCLI to be ready
