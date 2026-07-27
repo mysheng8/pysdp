@@ -4615,7 +4615,6 @@ function renderPromptBody(promptId, data) {
       </div>
       <div style="display:flex;gap:8px">
         ${hasCustom ? `<button class="btn-secondary btn-sm" onclick="resetPrompt('${promptId}')">Reset to Default</button>` : ''}
-        <button class="btn-secondary btn-sm" onclick="previewPrompt('${promptId}')">Preview</button>
         <button class="btn-primary btn-sm" onclick="savePrompt('${promptId}')">Save</button>
       </div>
     </div>

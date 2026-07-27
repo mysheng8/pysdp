@@ -2351,7 +2351,7 @@ body.chat-open .home-detail-bar { right: 600px; }
 }
 
 .prompt-textarea.prompt-textarea-large {
-  min-height: 450px;
+  min-height: 550px;
 }
 
 .prompt-textarea:focus {
