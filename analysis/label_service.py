@@ -284,7 +284,10 @@ def _load_shader_code(snap: Path, pipeline_id: int) -> str:
 
 
 def _build_llm_prompt(dc: dict, shader_code: str) -> str:
-    """Mirror C# DrawCallLabelService.BuildPrompt() exactly."""
+    """Build LLM prompt using PromptManager (customizable via prompts.json)."""
+    from config.prompt_manager import get_prompt_manager
+
+    # Extract DC parameters
     cat_list  = "/".join(_ALLOWED_CATEGORIES)
     api_name  = dc.get("api_name", "")
     vc        = dc.get("vertex_count",  0) or 0
@@ -299,25 +302,20 @@ def _build_llm_prompt(dc: dict, shader_code: str) -> str:
 
     verts_per_inst = (vc // inst) if inst > 0 else vc
 
-    out: list[str] = [
-        "Classify this Vulkan draw call. Reply with JSON only.",
-        "",
-        f"API:{api_name}",
-        f"Verts:{vc}  Indices:{ic}  Instances:{inst}"
-        f"  VertsPerInst:{verts_per_inst}  Textures:{len(textures)}",
-        f"Shaders: {stage_str}",
-    ]
-
+    # Build render targets section
+    rt_lines: list[str] = []
     if rts:
-        out.append("Render targets:")
+        rt_lines.append("Render targets:")
         for rt in rts:
             sz  = (f" {rt.get('width')}x{rt.get('height')}"
                    if rt.get("width") and rt.get("height") else "")
             fmt = f" {rt.get('format_name','')}" if rt.get("format_name") else ""
-            out.append(f"  [{rt.get('attachment_index','')}]"
-                       f"{rt.get('attachment_type','')}{sz}{fmt}")
+            rt_lines.append(f"  [{rt.get('attachment_index','')}]"
+                            f"{rt.get('attachment_type','')}{sz}{fmt}")
+    render_targets_section = "\n".join(rt_lines) if rt_lines else ""
 
-    # Mesh geometry summary (from meshes.json stats)
+    # Build mesh section
+    mesh_lines: list[str] = []
     mesh = dc.get("mesh_stats") or {}
     if mesh:
         bbox_min = mesh.get("bbox_min")
@@ -326,89 +324,49 @@ def _build_llm_prompt(dc: dict, shader_code: str) -> str:
         if bbox_min and bbox_max:
             bbox_str = (f"  bbox:[{bbox_min[0]:.3f},{bbox_min[1]:.3f},{bbox_min[2]:.3f}]"
                         f"→[{bbox_max[0]:.3f},{bbox_max[1]:.3f},{bbox_max[2]:.3f}]")
-        out += [
+        mesh_lines = [
             "Mesh:",
             f"  vertices:{mesh.get('vertex_count',0)}  faces:{mesh.get('face_count',0)}"
             f"  normals:{mesh.get('normal_count',0)}  uvs:{mesh.get('uv_count',0)}"
             + bbox_str,
         ]
+    mesh_section = "\n".join(mesh_lines) if mesh_lines else ""
 
-    # Texture descriptions (from textures.json VLM analysis)
+    # Build texture descriptions section
+    tex_lines: list[str] = []
     tex_descs = dc.get("texture_descriptions") or []
     if tex_descs:
-        out.append("Textures:")
+        tex_lines.append("Textures:")
         for td in tex_descs:
             sz  = f" {td['width']}x{td['height']}" if td.get("width") and td.get("height") else ""
             desc = td.get("description") or ""
             desc_short = desc[:120].replace("\n", " ") if desc else "(no description)"
-            out.append(f"  [{td.get('texture_id','')}]{sz} {desc_short}")
+            tex_lines.append(f"  [{td.get('texture_id','')}]{sz} {desc_short}")
+    texture_descriptions_section = "\n".join(tex_lines) if tex_lines else ""
 
-    out += [
-        "",
-        "Category definitions:",
-        "  Scene              — static world geometry rendered to the main HDR buffer (buildings, props).",
-        "  Terrain            — heightfield/ground mesh, uses virtual/heightfield textures or terrain lightmaps.",
-        "  Character          — dynamic skinned mesh (players, crowd) with per-object SH probe lighting, no lightmap UVs.",
-        "  PostProcess        — fullscreen-quad pass that reads from a previously rendered texture and writes to an RT.",
-        "  VFX                — particle systems, billboard quads, or other effect geometry (many small instances).",
-        "  UI                 — 2D interface elements, no depth RT, typically RGBA8 color RT.",
-        "  Other              — compute dispatches.",
-        "  Scene(Shadow)      — shadow map pass rendering SCENE geometry into a depth or encoded-depth RT.",
-        "  Terrain(Shadow)    — shadow map pass rendering TERRAIN geometry into a depth or encoded-depth RT.",
-        "  Character(Shadow)  — shadow map pass rendering CHARACTER geometry into a depth or encoded-depth RT.",
-        "",
-        "Rules (apply in order):",
-        "R1 [Render targets first — HIGHEST PRIORITY, overrides everything else]",
-        "  ** RULE R1a: Depth-only RT, no Color RT → SHADOW MAP PASS. Determine object type from shader and output",
-        "     the matching shadow category: 'Scene(Shadow)', 'Terrain(Shadow)', or 'Character(Shadow)'.",
-        "     Default to 'Scene(Shadow)' if indeterminate.",
-        "  ** RULE R1b: Color RT with only 2 channels (R8G8/R16G16/R32G32/RG prefix), AND no Depth RT,",
-        "     AND real geometry (VertexCount>6 or IndexBuffer) → ENCODED DEPTH SHADOW MAP (VSM/ESM).",
-        "     Output matching shadow category. Do NOT output bare 'Scene'.",
-        "  ** RULE R1b exception: VertexCount 3-6 AND no IndexBuffer → fullscreen shadow blur → PostProcess.",
-        "  Color-only RT, no Depth, R8G8B8A8/B8G8R8A8 → UI",
-        "  Color-only RT, no Depth, HDR/float format, screen-size → PostProcess",
-        "  Color HDR + Depth, VertsPerInst<=6, many instances → VFX (particles/quads)",
-        "  Color HDR + Depth, VertsPerInst>6, normal geometry → Scene/Character/Terrain",
-        "R2 [Shader main() for Scene/Character/Terrain]",
-        "  Scene:     lightmap textures sampled in main() using TEXCOORD2 UVs (irradiance/sky-visibility/baked).",
-        "  Character: per-object SH probe Buffer<float4> loaded via per-instance offset — no lightmap sampling.",
-        "             Also: per-instance cosmetic data (tint/recolor) or skinned vertex buffer offset.",
-        "             vkCmdDispatch with entry point containing skin/skinning/morph/deform/cloth/hair → Character.",
-        "  Terrain:   terrain-specific expression shader or virtual/heightfield texture sampling in main().",
-        "R3 [cbuffer vs texture priority — CRITICAL]",
-        "  The first/global cbuffer (b0 or b11) is a SHARED per-pass buffer present in EVERY draw call.",
-        "  It typically contains terrain, shadow, lighting structs — ALL irrelevant unless READ in main().",
-        "  IGNORE global cbuffer struct declarations. Only what is used inside main()/frag_main() matters.",
-        "  TRUST ORDER: texture/sampler calls in main() > secondary cbuffers/typed buffers > global cbuffer.",
-        "  If a typed Buffer<float4> or ByteAddressBuffer is loaded via a per-instance offset in main(),",
-        "  that is a STRONG signal of Character (dynamic SH probe data). Terrain is always static/baked.",
-        "",
-        "Shader (analyze what is actually computed in main()):",
-        shader_code,
-        "",
-        f"Categories: {cat_list}",
-        "IMPORTANT RESTRICTIONS:",
-        "  - 'Other' is for vkCmdDispatch compute that has NO clear category signal.",
-        "    If the compute shader entry point or code mentions skin/skinning/morph/deform/cloth/hair",
-        "    → use 'Character' (subcategory 'Compute'), NOT 'Other'.",
-        "  - NEVER use 'Other' for vkCmdDraw or vkCmdDrawIndexed.",
-        "  - If R1a/R1b apply (shadow map RT), you MUST use a shadow category.",
-        "    Do NOT fall back to 'Other' — default to 'Scene(Shadow)'.",
-        "  - If the shader mentions 'shadow', 'planar shadow', or 'depth encoding', category MUST end in '(Shadow)'.",
-        "",
-        f"Categories: {cat_list}",
-        "Subcategory examples: Opaque, Transparent, DepthOnly, SkinMesh, GaussianBlur, ToneMapping, SSAO,"
-        " Bloom, TAA, ShadowDepth, ParticleBillboard, UICanvas.",
-        "ReasonTags — pick 1-4: pbr_material, multi_texture_blend, high_uv_sampling, skinned_mesh, morphing,"
-        " instanced_draw, compute_dispatch, gaussian_blur, tone_mapping, ssao, bloom, taa, shadow_depth_write,"
-        " shadow_pcf_sample, particle_billboard, trail_ribbon, ui_canvas, font_glyph, depth_only,"
-        " opaque_geometry, transparent_geometry, large_render_target, mrt_output.",
-        "Output JSON only, no markdown, confidence in [0,1]:",
-        '{"category":"<category>","subcategory":"<subcategory>","detail":"<3-8 word description>",'
-        '"reason_tags":["tag1"],"confidence":0.9}',
-    ]
-    return "\n".join(out)
+    # Render prompt via PromptManager
+    pm = get_prompt_manager()
+    variables = {
+        "api_name": api_name,
+        "vertex_count": vc,
+        "index_count": ic,
+        "instance_count": inst,
+        "verts_per_inst": verts_per_inst,
+        "texture_count": len(textures),
+        "shader_stages": stage_str,
+        "render_targets_section": render_targets_section,
+        "mesh_section": mesh_section,
+        "texture_descriptions_section": texture_descriptions_section,
+        "shader_code": shader_code,
+        "category_list": cat_list,
+    }
+
+    system_prompt, user_prompt = pm.render_prompt("label_dc", variables)
+
+    # Combine system + user (llm_wrapper expects single prompt string)
+    if system_prompt:
+        return f"{system_prompt}\n\n{user_prompt}"
+    return user_prompt
 
 
 def _parse_llm_response(text: str) -> dict | None:

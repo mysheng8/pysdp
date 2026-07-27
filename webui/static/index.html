@@ -245,12 +245,20 @@
 <!-- ══ Settings Modal ═════════════════════════════════════════ -->
 <div class="modal-overlay" id="settings-modal" style="display:none">
   <div class="modal-backdrop" onclick="closeModal('settings-modal')"></div>
-  <div class="modal-panel modal-sm">
+  <div class="modal-panel modal-md">
     <div class="modal-header">
-      <span class="modal-title">Analysis Settings</span>
+      <span class="modal-title">Settings</span>
       <button class="modal-close" onclick="closeModal('settings-modal')">&#10005;</button>
     </div>
-    <div class="modal-body">
+
+    <!-- Settings tabs -->
+    <div class="settings-tabs">
+      <button class="settings-tab active" data-tab="general" onclick="switchSettingsTab('general')">General</button>
+      <button class="settings-tab" data-tab="prompts" onclick="switchSettingsTab('prompts')">AI Prompts</button>
+    </div>
+
+    <!-- General settings tab -->
+    <div class="modal-body settings-tab-content" id="settings-general" style="display:block">
       <div class="form-row" style="margin-top:10px">
         <label>SDP Directory</label>
         <input id="sdp-dir" type="text" placeholder="D:/snapdragon/project/sdp" style="flex:1;min-width:0">
@@ -285,6 +293,18 @@
       <div class="muted" style="font-size:12px;margin-top:6px">
         Organize snapshots by project and version for comparison.
       </div>
+    </div>
+
+    <!-- AI Prompts tab -->
+    <div class="modal-body settings-tab-content" id="settings-prompts" style="display:none">
+      <div class="prompts-header">
+        <p class="muted" style="font-size:12px;margin:10px 0">
+          Customize AI prompts for each analysis step. Changes take effect immediately.
+          <span class="badge badge-orange" style="margin-left:8px;font-size:10px">EXPERIMENTAL</span>
+        </p>
+      </div>
+      <div id="prompts-list"></div>
+      <div class="status-msg" id="prompts-save-msg"></div>
     </div>
   </div>
 </div>

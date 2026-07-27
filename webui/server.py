@@ -41,6 +41,7 @@ from routes.logs            import router as logs_router                     # n
 from routes.data            import make_router as _make_data_router          # noqa: E402
 from routes.jobs_router     import make_router as _make_jobs_router          # noqa: E402
 from routes.snapshot_router import router as snapshot_router                 # noqa: E402
+from routes.prompts         import router as prompts_router                  # noqa: E402
 from events                 import router as events_router, _set_loop as _events_set_loop  # noqa: E402
 import logger as _logger_module                       # noqa: E402
 from data.db import WorkspaceDB                       # noqa: E402
@@ -150,6 +151,7 @@ app.include_router(_make_files_router(db=_db),      prefix="/api/files",    tags
 app.include_router(logs_router,                     prefix="/api/logs")
 app.include_router(_make_data_router(_db),          prefix="/api/data",     tags=["data"])
 app.include_router(_make_jobs_router(db=_db),       prefix="/api/jobs",     tags=["jobs"])
+app.include_router(prompts_router,                  tags=["prompts"])
 app.include_router(events_router,                   prefix="/api")
 
 # ── Chat AI module ───────────────────────────────────────────────────────────

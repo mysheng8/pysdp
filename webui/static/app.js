@@ -4460,3 +4460,309 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(_initSSE, 3000);
   });
 });
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AI Prompts Settings
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _promptsCache = null;
+let _expandedPrompts = new Set();
+
+function switchSettingsTab(tab) {
+  // Update tab buttons
+  document.querySelectorAll('.settings-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+
+  // Show/hide tab content
+  document.querySelectorAll('.settings-tab-content').forEach(content => {
+    content.style.display = 'none';
+  });
+  const targetContent = document.getElementById(`settings-${tab}`);
+  if (targetContent) {
+    targetContent.style.display = 'block';
+  }
+
+  // Load prompts when switching to prompts tab
+  if (tab === 'prompts' && !_promptsCache) {
+    loadPrompts();
+  }
+}
+
+async function loadPrompts() {
+  try {
+    const resp = await fetch('/api/prompts');
+    if (!resp.ok) throw new Error(`Failed to load prompts: ${resp.statusText}`);
+    const data = await resp.json();
+    _promptsCache = data.prompts || [];
+    renderPromptsList();
+  } catch (err) {
+    console.error('loadPrompts error:', err);
+    showPromptsMsg('Failed to load prompts: ' + err.message, 'error');
+  }
+}
+
+function renderPromptsList() {
+  const container = document.getElementById('prompts-list');
+  if (!container) return;
+
+  if (!_promptsCache || _promptsCache.length === 0) {
+    container.innerHTML = '<p class="muted" style="text-align:center;padding:20px">No prompts available</p>';
+    return;
+  }
+
+  container.innerHTML = _promptsCache.map(p => {
+    const expanded = _expandedPrompts.has(p.id);
+    const freqClass = p.call_frequency === 'high' ? 'prompt-freq-high' : 
+                      p.call_frequency === 'medium' ? 'prompt-freq-medium' : 'prompt-freq-low';
+    
+    return `
+      <div class="prompt-card ${expanded ? 'expanded' : ''}" id="prompt-card-${p.id}">
+        <div class="prompt-card-header" onclick="togglePromptCard('${p.id}')">
+          <div class="prompt-card-title">
+            <span class="prompt-expand-icon">&#9654;</span>
+            <div>
+              <div class="prompt-card-name">${escapeHtml(p.id)}</div>
+              <div class="prompt-card-desc">${escapeHtml(p.description)}</div>
+            </div>
+          </div>
+          <span class="prompt-freq-badge ${freqClass}">${p.call_frequency}</span>
+        </div>
+        <div class="prompt-card-body" id="prompt-body-${p.id}">
+          <div style="text-align:center;color:var(--text-muted);padding:20px">Loading...</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function togglePromptCard(promptId) {
+  const card = document.getElementById(`prompt-card-${promptId}`);
+  const body = document.getElementById(`prompt-body-${promptId}`);
+  if (!card || !body) return;
+
+  const wasExpanded = _expandedPrompts.has(promptId);
+
+  if (wasExpanded) {
+    // Collapse
+    _expandedPrompts.delete(promptId);
+    card.classList.remove('expanded');
+  } else {
+    // Expand and load details
+    _expandedPrompts.add(promptId);
+    card.classList.add('expanded');
+
+    // Load prompt details
+    try {
+      const resp = await fetch(`/api/prompts/${promptId}`);
+      if (!resp.ok) throw new Error(`Failed to load prompt: ${resp.statusText}`);
+      const data = await resp.json();
+      renderPromptBody(promptId, data);
+    } catch (err) {
+      body.innerHTML = `<p style="color:var(--error)">Error: ${escapeHtml(err.message)}</p>`;
+    }
+  }
+}
+
+function renderPromptBody(promptId, data) {
+  const body = document.getElementById(`prompt-body-${promptId}`);
+  if (!body) return;
+
+  const current = data.current;
+  const hasCustom = current.system_prompt !== data.default.system_prompt || 
+                     current.user_template !== data.default.user_template;
+
+  body.innerHTML = `
+    <div class="prompt-field">
+      <div class="prompt-field-label">
+        <span>System Prompt</span>
+        <span class="prompt-char-count" id="sys-char-${promptId}">0 chars</span>
+      </div>
+      <textarea class="prompt-textarea" id="prompt-sys-${promptId}" 
+                oninput="updateCharCount('${promptId}')">${escapeHtml(current.system_prompt || '')}</textarea>
+      <div class="prompt-field-hint">Sent to the LLM as the system message</div>
+    </div>
+
+    <div class="prompt-field">
+      <div class="prompt-field-label">
+        <span>User Template</span>
+        <span class="prompt-char-count" id="user-char-${promptId}">0 chars</span>
+      </div>
+      <textarea class="prompt-textarea" id="prompt-user-${promptId}" 
+                oninput="updateCharCount('${promptId}')"
+                style="min-height:200px">${escapeHtml(current.user_template || '')}</textarea>
+      <div class="prompt-field-hint">
+        Use {variable} placeholders for dynamic substitution
+      </div>
+      ${current.variables && current.variables.length > 0 ? `
+        <div class="prompt-variables">
+          ${current.variables.map(v => `<span class="prompt-var-chip">{${v}}</span>`).join('')}
+        </div>
+      ` : ''}
+    </div>
+
+    <div class="prompt-actions">
+      ${hasCustom ? `<button class="btn-secondary btn-sm" onclick="resetPrompt('${promptId}')">Reset to Default</button>` : ''}
+      <button class="btn-secondary btn-sm" onclick="previewPrompt('${promptId}')">Preview</button>
+      <button class="btn-primary btn-sm" onclick="savePrompt('${promptId}')">Save</button>
+    </div>
+
+    <div class="prompt-preview-section" id="prompt-preview-${promptId}"></div>
+  `;
+
+  updateCharCount(promptId);
+}
+
+function updateCharCount(promptId) {
+  const sysEl = document.getElementById(`prompt-sys-${promptId}`);
+  const userEl = document.getElementById(`prompt-user-${promptId}`);
+  const sysCountEl = document.getElementById(`sys-char-${promptId}`);
+  const userCountEl = document.getElementById(`user-char-${promptId}`);
+
+  if (sysEl && sysCountEl) {
+    sysCountEl.textContent = `${sysEl.value.length} chars`;
+  }
+  if (userEl && userCountEl) {
+    userCountEl.textContent = `${userEl.value.length} chars`;
+  }
+}
+
+async function savePrompt(promptId) {
+  const sysEl = document.getElementById(`prompt-sys-${promptId}`);
+  const userEl = document.getElementById(`prompt-user-${promptId}`);
+  if (!sysEl || !userEl) return;
+
+  try {
+    const resp = await fetch(`/api/prompts/${promptId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_prompt: sysEl.value,
+        user_template: userEl.value,
+        enabled: true
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.detail || resp.statusText);
+    }
+
+    showPromptsMsg(`Prompt '${promptId}' saved successfully`, 'success');
+    
+    // Reload to show "Reset to Default" button if needed
+    _promptsCache = null;
+    _expandedPrompts.clear();
+    await loadPrompts();
+    _expandedPrompts.add(promptId);
+    document.getElementById(`prompt-card-${promptId}`)?.classList.add('expanded');
+    const respDetail = await fetch(`/api/prompts/${promptId}`);
+    const dataDetail = await respDetail.json();
+    renderPromptBody(promptId, dataDetail);
+  } catch (err) {
+    showPromptsMsg('Failed to save prompt: ' + err.message, 'error');
+  }
+}
+
+async function resetPrompt(promptId) {
+  if (!confirm(`Reset '${promptId}' to default prompt?`)) return;
+
+  try {
+    const resp = await fetch(`/api/prompts/${promptId}/reset`, {
+      method: 'POST'
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.detail || resp.statusText);
+    }
+
+    showPromptsMsg(`Prompt '${promptId}' reset to default`, 'success');
+
+    // Reload
+    _promptsCache = null;
+    _expandedPrompts.clear();
+    await loadPrompts();
+    _expandedPrompts.add(promptId);
+    document.getElementById(`prompt-card-${promptId}`)?.classList.add('expanded');
+    const respDetail = await fetch(`/api/prompts/${promptId}`);
+    const dataDetail = await respDetail.json();
+    renderPromptBody(promptId, dataDetail);
+  } catch (err) {
+    showPromptsMsg('Failed to reset prompt: ' + err.message, 'error');
+  }
+}
+
+async function previewPrompt(promptId) {
+  const sysEl = document.getElementById(`prompt-sys-${promptId}`);
+  const userEl = document.getElementById(`prompt-user-${promptId}`);
+  const previewSection = document.getElementById(`prompt-preview-${promptId}`);
+  if (!sysEl || !userEl || !previewSection) return;
+
+  // Get sample variables (hardcoded for now)
+  const sampleVars = {
+    api_name: 'vkCmdDrawIndexed',
+    vertex_count: 1024,
+    index_count: 3072,
+    instance_count: 1,
+    verts_per_inst: 1024,
+    texture_count: 3,
+    shader_stages: 'vert:vs_main, frag:ps_main',
+    render_targets_section: 'Render targets:
+  [0] Color 1920x1080 R8G8B8A8_UNORM',
+    mesh_section: 'Mesh:
+  vertices:1024  faces:512',
+    texture_descriptions_section: 'Textures:
+  [0] 2048x2048 Albedo map',
+    shader_code: '// Sample shader
+void main() { gl_FragColor = vec4(1.0); }',
+    category_list: 'Scene/Terrain/Character/PostProcess/VFX/UI/Other'
+  };
+
+  try {
+    const resp = await fetch('/api/prompts/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt_id: promptId,
+        system_prompt: sysEl.value,
+        user_template: userEl.value,
+        sample_variables: sampleVars
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.detail || resp.statusText);
+    }
+
+    const data = await resp.json();
+    previewSection.innerHTML = `
+      <div class="prompt-preview-title">Preview (${data.char_count.total} chars total)</div>
+      ${data.system_prompt ? `
+        <div style="margin-bottom:8px">
+          <div style="font-size:11px;font-weight:600;margin-bottom:4px">System (${data.char_count.system} chars):</div>
+          <div class="prompt-preview-content">${escapeHtml(data.system_prompt)}</div>
+        </div>
+      ` : ''}
+      <div>
+        <div style="font-size:11px;font-weight:600;margin-bottom:4px">User (${data.char_count.user} chars):</div>
+        <div class="prompt-preview-content">${escapeHtml(data.user_prompt)}</div>
+      </div>
+    `;
+    previewSection.classList.add('visible');
+  } catch (err) {
+    previewSection.innerHTML = `<p style="color:var(--error)">Preview failed: ${escapeHtml(err.message)}</p>`;
+    previewSection.classList.add('visible');
+  }
+}
+
+function showPromptsMsg(msg, type = 'success') {
+  const el = document.getElementById('prompts-save-msg');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = type === 'success' ? 'var(--success)' : 'var(--error)';
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
