@@ -452,6 +452,14 @@
     <button class="chat-copy-btn" onclick="copyChatConversation()" title="Copy conversation">&#128203;</button>
     <button class="chat-close-btn" onclick="toggleChatPanel()">&#10005;</button>
   </div>
+  <div class="chat-session-bar" id="chat-session-bar">
+    <div class="session-list-header">
+      <span>Sessions</span>
+      <button onclick="newSession()" title="New session">+</button>
+      <button id="chat-session-toggle" onclick="toggleSessionList()">&#9660;</button>
+    </div>
+    <div class="session-list" id="chat-session-list" style="display:none"></div>
+  </div>
   <div class="chat-messages" id="chat-messages"></div>
   <div class="chat-status-line" id="chat-status-line" style="display:none"></div>
   <div class="chat-input-area">

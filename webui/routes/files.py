@@ -869,6 +869,38 @@ def make_router(db=None) -> APIRouter:
         except Exception as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
+    # ── Project-relative file serving (for session attachments, reports) ──────────
+
+    @router.get("/project", operation_id="get_file_project",
+                summary="Serve a file by project-relative path",
+                description="Serve any file under ProjectDir by relative path. "
+                            "Used for reports, chart images, and session attachments.")
+    def serve_project_file(
+        path: str = Query(..., description="Path relative to ProjectDir (forward slashes)"),
+        download: int = Query(default=0, description="Set to 1 to trigger browser download"),
+    ):
+        from config import get_settings as _get_cfg
+        cfg = _get_cfg()
+        project = cfg.get("ProjectDir", "")
+        if not project:
+            working = cfg.get("WorkingDirectory", "")
+            if working:
+                project = str(Path(working) / "project")
+        if not project:
+            return JSONResponse({"ok": False, "error": "ProjectDir not configured"}, status_code=500)
+
+        project_dir = Path(project)
+        full = (project_dir / path).resolve()
+        if not str(full).startswith(str(project_dir.resolve())):
+            return JSONResponse({"ok": False, "error": "Path outside project dir"}, status_code=400)
+        if not full.exists() or not full.is_file():
+            return JSONResponse({"ok": False, "error": f"Not found: {path}"}, status_code=404)
+
+        headers = {}
+        if download:
+            headers["Content-Disposition"] = f'attachment; filename="{full.name}"'
+        return FileResponse(str(full), headers=headers)
+
     # ── Settings from config ─────────────────────────────────────────────────────
 
     @router.get("/settings")

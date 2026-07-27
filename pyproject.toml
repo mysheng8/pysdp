@@ -33,7 +33,7 @@ pysdp = "webui.server:main"
 pysdp-fetch = "scripts.fetch_sdpcli:main"
 
 [tool.pysdp]
-sdpcli_version = "0.1.2"
+sdpcli_version = "0.1.4"
 sdpcli_release_url = "https://github.com/mysheng8/sdpcli-releases/releases/download/v{version}/SDPCLI-v{version}-win64.zip"
 
 [tool.setuptools.packages.find]

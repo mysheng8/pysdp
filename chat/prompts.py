@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
 import chat
+
+if TYPE_CHECKING:
+    from chat.sessions import Session
 
 
 def _detect_language(text: str) -> str:
@@ -26,7 +30,11 @@ def _detect_language(text: str) -> str:
 _LANG_NAMES = {"zh": "Chinese", "ja": "Japanese", "ko": "Korean", "en": "English"}
 
 
-def build_system_prompt(snapshot_ids: list[int], user_lang: str = "en") -> str:
+def build_system_prompt(
+    snapshot_ids: list[int],
+    user_lang: str = "en",
+    session: "Session | None" = None,
+) -> str:
     lang_instruction = f"Respond in {_LANG_NAMES.get(user_lang, 'English')}."
 
     parts = [
@@ -56,5 +64,50 @@ def build_system_prompt(snapshot_ids: list[int], user_lang: str = "en") -> str:
         if rows:
             parts.append("")
             parts.append("Active snapshots: " + ", ".join(f"#{r[0]} {r[1]}" for r in rows))
+
+    # -- Aspect menu (always present) --
+    parts.append("")
+    parts.append("## Available Snapshot Aspects")
+    parts.append(
+        "fetch_aspect(snapshot_id, aspect) — call when user asks about a dimension not yet in context."
+    )
+    parts.append(
+        "  gpu_timing, bandwidth, draw_call_breakdown, shader_complexity, "
+        "texture_usage, triangle_count, bottleneck_summary"
+    )
+
+    # -- Cross-snapshot comparison hint --
+    parts.append("")
+    parts.append("## Cross-Snapshot Comparison")
+    parts.append(
+        "compare_snapshots(baseline_id, target_id) — category deltas, top regressions, bottleneck shifts."
+    )
+
+    # -- Already-fetched list (session-dependent) --
+    if session is not None:
+        from chat.sessions import get_fetched_aspects
+
+        fetched = get_fetched_aspects(session)
+        if fetched:
+            parts.append("")
+            parts.append("## Already Fetched Aspects (do NOT re-fetch)")
+            for item in fetched:
+                parts.append(
+                    f"  #{item['snapshot_id']} :: {item['aspect']:<22s} ({item['msg_id']})"
+                )
+
+    # -- Reply structure convention --
+    parts.append("")
+    parts.append("## Reply Structure")
+    parts.append("Structure every reply as:")
+    parts.append("  First line:  【answer】<direct answer>")
+    parts.append("  Body:        analysis...")
+    parts.append("  Last line:   【recap】<summary of this round>")
+
+    # -- History recall hint --
+    parts.append("")
+    parts.append(
+        'If missing earlier detail, call recall_history(query="...") to browse trimmed rounds.'
+    )
 
     return "\n".join(parts)

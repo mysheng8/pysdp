@@ -12,6 +12,10 @@ const chatState = {
   activeSkill: null,  // currently selected skill object
   _startTime: null,
   _statusTimer: null,
+  // Session management
+  sessionId: null,
+  sessionList: [],
+  sessionListVisible: false,
 };
 
 function toggleChatPanel() {
@@ -19,6 +23,7 @@ function toggleChatPanel() {
   document.body.classList.toggle('chat-open', chatState.isOpen);
   if (chatState.isOpen) {
     if (chatState.skills.length === 0) loadSkills();
+    if (chatState.sessionList.length === 0) loadSessionList();
     if (chatState.messages.length === 0) renderWelcome();
   }
 }
@@ -340,8 +345,10 @@ async function streamWithSkill(skillId, snapshotIds, userPrompt) {
 
   try {
     updateStatusText('Running skill...');
+    const lastUserMsg = chatState.messages[chatState.messages.length - 1];
     const body = {
-      messages: chatState.messages,
+      message: lastUserMsg ? lastUserMsg.content : (userPrompt || ''),
+      session_id: chatState.sessionId,
       snapshot_ids: snapshotIds,
       skill_id: skillId,
     };
@@ -379,10 +386,16 @@ async function streamChat() {
 
   try {
     const snapshotIds = getActiveSnapshotIds();
+    const lastUserMsg = chatState.messages[chatState.messages.length - 1];
+    const body = {
+      message: lastUserMsg ? lastUserMsg.content : '',
+      session_id: chatState.sessionId,
+      snapshot_ids: snapshotIds,
+    };
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: chatState.messages, snapshot_ids: snapshotIds }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -521,6 +534,11 @@ function handleSSEEvent(type, data, contentEl, assistantEl) {
       }
     }
     autoScroll();
+  } else if (type === 'done') {
+    if (data.session_id && !chatState.sessionId) {
+      chatState.sessionId = data.session_id;
+    }
+    if (data.session_id) loadSessionList();
   } else if (type === 'error') {
     contentEl.textContent = `Error: ${data.message}`;
   }
@@ -687,6 +705,103 @@ function selectSlashCommand(cmd) {
 }
 
 // Input handling
+// ── Session management ──────────────────────────────────────────────────────
+
+async function loadSessionList() {
+  try {
+    const resp = await fetch('/api/chat/sessions');
+    if (resp.ok) {
+      const data = await resp.json();
+      chatState.sessionList = data.sessions || [];
+      renderSessionList();
+    }
+  } catch (_) {}
+}
+
+function renderSessionList() {
+  const container = document.getElementById('chat-session-list');
+  if (!container) return;
+  if (!chatState.sessionList.length) {
+    container.innerHTML = '<div class="session-empty">No sessions yet</div>';
+    return;
+  }
+  container.innerHTML = chatState.sessionList.map(s => {
+    const active = s.id === chatState.sessionId ? ' active' : '';
+    const time = s.updated_at ? new Date(s.updated_at).toLocaleString(undefined, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+    return `<div class="session-entry${active}" onclick="switchSession('${s.id}')">
+      <span class="session-title">${escapeHtml(s.title)}</span>
+      <span class="session-time">${time}</span>
+      <button class="session-delete-btn" onclick="event.stopPropagation();deleteSession('${s.id}')" title="Delete">&times;</button>
+    </div>`;
+  }).join('');
+}
+
+function toggleSessionList() {
+  chatState.sessionListVisible = !chatState.sessionListVisible;
+  const container = document.getElementById('chat-session-list');
+  if (container) {
+    container.style.display = chatState.sessionListVisible ? 'block' : 'none';
+  }
+  const toggle = document.getElementById('chat-session-toggle');
+  if (toggle) toggle.textContent = chatState.sessionListVisible ? '▲' : '▼';
+}
+
+async function switchSession(sessionId) {
+  if (sessionId === chatState.sessionId) return;
+  try {
+    const resp = await fetch(`/api/chat/sessions/${sessionId}`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    chatState.sessionId = data.id;
+    chatState.messages = [];
+    const msgArea = document.getElementById('chat-messages');
+    if (msgArea) msgArea.innerHTML = '';
+
+    for (const msg of (data.messages || [])) {
+      if (msg.role === 'user' && msg.type === 'text') {
+        chatState.messages.push({ role: 'user', content: msg.content });
+        appendMessageBubble('user', msg.content);
+      } else if (msg.role === 'assistant' && msg.type === 'text') {
+        chatState.messages.push({ role: 'assistant', content: msg.content });
+        appendMessageBubble('assistant', msg.content);
+      }
+    }
+    renderSessionList();
+    autoScroll();
+  } catch (_) {}
+}
+
+async function newSession() {
+  try {
+    const resp = await fetch('/api/chat/sessions', { method: 'POST' });
+    if (resp.ok) {
+      const data = await resp.json();
+      chatState.sessionId = data.id;
+      chatState.messages = [];
+      const msgArea = document.getElementById('chat-messages');
+      if (msgArea) msgArea.innerHTML = '';
+      renderWelcome();
+      await loadSessionList();
+    }
+  } catch (_) {}
+}
+
+async function deleteSession(sessionId) {
+  try {
+    await fetch(`/api/chat/sessions/${sessionId}`, { method: 'DELETE' });
+    if (chatState.sessionId === sessionId) {
+      chatState.sessionId = null;
+      chatState.messages = [];
+      const msgArea = document.getElementById('chat-messages');
+      if (msgArea) msgArea.innerHTML = '';
+      renderWelcome();
+    }
+    await loadSessionList();
+  } catch (_) {}
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
   const input = document.getElementById('chat-input');
   if (!input) return;
