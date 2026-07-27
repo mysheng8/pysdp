@@ -119,6 +119,28 @@ def _build_data_summary(status: dict, topdc: dict) -> dict:
 
 
 def _build_prompt(data: dict, scene_desc: str, sdp_name: str) -> str:
+    """Build report generation prompt using PromptManager (customizable via prompts.json)."""
+    from prompt_config.prompt_manager import get_prompt_manager
+
+    data_json = json.dumps(data, ensure_ascii=False, indent=2)
+
+    pm = get_prompt_manager()
+    variables = {
+        "scene_desc": scene_desc or "Not available",
+        "sdp_name": sdp_name,
+        "data_json": data_json,
+    }
+
+    system_prompt, user_prompt = pm.render_prompt("report_generation", variables)
+
+    # Combine system + user (llm.chat expects single prompt string)
+    if system_prompt:
+        return f"{system_prompt}\n\n{user_prompt}"
+    return user_prompt
+
+
+def _build_prompt_ORIGINAL(data: dict, scene_desc: str, sdp_name: str) -> str:
+    """ORIGINAL HARDCODED VERSION - kept for reference only."""
     data_json = json.dumps(data, ensure_ascii=False, indent=2)
     return f"""You are a GPU performance engineer analyzing Snapdragon Adreno profiling data from a mobile game frame.
 

@@ -111,6 +111,62 @@ LABEL_DC_VALIDATION_SCHEMA = {
     },
 }
 
+# ── report_generation: GPU performance report ─────────────────────────────────
+
+REPORT_GENERATION_SYSTEM_PROMPT = "You are a GPU performance engineer analyzing Snapdragon Adreno profiling data from a mobile game frame."
+
+REPORT_GENERATION_USER_TEMPLATE = """Scene description from screenshot: {scene_desc}
+Capture name: {sdp_name}
+
+Profiling data (JSON):
+{data_json}
+
+Generate a detailed GPU performance analysis report in Markdown. The report MUST be written in Chinese and follow this exact structure:
+
+# GPU 性能分析报告 — {{sdp_name}}
+
+## 1. 总览
+
+Describe the frame in 2-3 sentences (using the scene description). Then provide a table:
+
+| 指标 | 数值 |
+|------|------|
+| Draw Call 总数 | ... |
+| 总 Clocks | ... |
+| 总内存读取 | ... |
+| 总内存写入 | ... |
+| 总片元数 | ... |
+| 总顶点数 | ... |
+
+Then list the **top 3 most correlated performance metrics** for this frame (from global_top_metrics) and briefly explain what each metric indicates.
+
+## 2. 分类分析
+
+For each category in categories (ordered by clocks_pct descending), write a subsection:
+
+### 2.N. {{category}}（{{dc_count}} DC，占 GPU {{clocks_pct}}%）
+
+- **耗时**: 总 clocks，平均每 DC clocks
+- **性能特征**: p50 shader_busy%, tex_l1_miss_pct, read bandwidth
+- **关键指标**: top_metrics (explain what they indicate for this category)
+- **耗时 Top 3 DC**:
+
+| 排名 | DC ID | Clocks | 片元数 | Read | Write | Shader Busy | Tex L1 Miss |
+|------|-------|--------|--------|------|-------|-------------|-------------|
+| 1 | ... | ... | ... | ... | ... | ... | ... |
+
+- **小结**: 1-2句话总结该类的主要瓶颈
+
+## 3. 优化建议
+
+Based on the data, provide 4-6 specific, actionable optimization recommendations prioritized by GPU time impact. Each recommendation should reference specific categories and metrics. Format as numbered list."""
+
+REPORT_GENERATION_VARIABLES = [
+    "scene_desc",
+    "sdp_name",
+    "data_json",
+]
+
 # ── Combined registry ──────────────────────────────────────────────────────────
 
 DEFAULT_PROMPTS = {
@@ -125,5 +181,17 @@ DEFAULT_PROMPTS = {
         "validation_schema": LABEL_DC_VALIDATION_SCHEMA,
         "cache_key_includes_prompt": True,
         "call_frequency": "high",  # Hundreds per frame
+    },
+    "report_generation": {
+        "enabled": True,
+        "description": "GPU performance analysis report generation in Markdown",
+        "model_override": None,
+        "system_prompt": REPORT_GENERATION_SYSTEM_PROMPT,
+        "user_template": REPORT_GENERATION_USER_TEMPLATE,
+        "variables": REPORT_GENERATION_VARIABLES,
+        "output_format": "markdown",
+        "validation_schema": None,
+        "cache_key_includes_prompt": False,
+        "call_frequency": "low",  # User-triggered
     },
 }
